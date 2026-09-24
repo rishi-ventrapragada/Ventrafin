@@ -1,0 +1,5 @@
+{
+  "SUPABASE_URL": "https://<project-ref>.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_<...>",
+  "GOOGLE_WEB_CLIENT_ID": "<number>-<id>.apps.googleusercontent.com"
+}

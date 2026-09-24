@@ -94,8 +94,8 @@ select ok(
 select set_eq(
   $$ select tablename::text from pg_publication_tables
      where pubname = 'supabase_realtime' and schemaname = 'public' $$,
-  array['transactions', 'accounts', 'recurring_bills'],
-  'realtime publishes transactions, accounts, recurring_bills'
+  array['transactions', 'accounts', 'recurring_bills', 'categories', 'profiles'],
+  'realtime publishes transactions, accounts, recurring_bills, categories, profiles'
 );
 
 set local role authenticated;

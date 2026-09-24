@@ -1,6 +1,54 @@
-# /mobile — Flutter app (Android only)
+# /mobile: Ventrafin Android app (Flutter)
 
-Placeholder. It gets scaffolded in **Phase 2 (Mobile core)**, see `PRD.md` § 7.
+Android only. Package `com.ventrafin.app` (DECISIONS.md D10). Riverpod + go_router (D11). Auth and lock design: D12 and ARCHITECTURE.md § 5–6.
 
-Planned stack: `supabase_flutter`, `local_auth` + pattern-lock fallback, `flutter_local_notifications`, `fl_chart`.
-The app holds only the Supabase URL and the anon/publishable key, never the service_role key.
+## Build-time config (never committed)
+
+The app reads its settings at build time from `config/dev.json`, which is gitignored. Copy the template and fill it in:
+
+```powershell
+Copy-Item config\example.json config\dev.json   # then edit the three values
+```
+
+| Key | Where to find it |
+|---|---|
+| `SUPABASE_URL` | Supabase dashboard → Project Settings → API (`https://<ref>.supabase.co`) |
+| `SUPABASE_PUBLISHABLE_KEY` | Same page. The **publishable** (`sb_publishable_…`) key, never a secret/service_role key |
+| `GOOGLE_WEB_CLIENT_ID` | Google Cloud → Google Auth Platform → Clients → the **Web** client's ID |
+
+A build without these shows a "setup needed" screen instead of the app.
+
+## Run / build (from `mobile/`)
+
+```powershell
+flutter pub get
+flutter devices                                              # phone connected with USB debugging?
+flutter run --dart-define-from-file=config/dev.json          # debug build on the phone
+flutter test                                                 # unit + widget tests
+flutter build apk --release --dart-define-from-file=config/dev.json
+```
+
+Google Sign-In only works on a build whose signing key's SHA-1 is registered in an Android OAuth client (see the root setup notes). Debug builds use `%USERPROFILE%\.android\debug.keystore`. Release builds use the key in `android/key.properties` (gitignored); if that file is missing, they fall back to the debug key.
+
+Get the SHA-1s with:
+
+```powershell
+cd android; .\gradlew signingReport
+```
+
+## Layout
+
+```
+lib/
+  main.dart, app.dart, router.dart   bootstrap, theme, routes and redirects
+  config/        build-time config
+  core/          money (paise <-> ₹, Indian grouping), India time, errors, theme, offline banner
+  data/          models, repository (Supabase), Riverpod providers, Realtime -> revisions
+  features/
+    auth/        native Google Sign-In -> signInWithIdToken
+    lock/        pattern pad, PBKDF2 hashing, lock store/controller, lock overlay, setup
+    entry/       keypad-first Add (batch) and Edit forms
+    transactions/  month list grouped by date, delete, live updates
+    shell/ settings/  bottom nav, dashboard, More, placeholders, settings
+test/            money + pattern-hash unit tests, add-flow widget tests
+```

@@ -100,6 +100,55 @@ This records what was decided, what was considered and rejected, and why — so 
 
 ---
 
+## D10. Android package name: `com.ventrafin.app`
+
+**Decision:** the Flutter app's Android application id / package name is **`com.ventrafin.app`**.
+
+**Why:** the package name is effectively permanent. The Android OAuth client in Google Cloud is bound to it (together with the signing key's SHA-1). The Play Store and Android identify the app by it, and on-device data (the session, the lock pattern hash) lives under it. It needed to be short, product-named and conventional reverse-DNS.
+
+**Rejected:**
+- `com.ventrafin.ventrafin`: Flutter's generated default; redundant.
+- `io.github.<username>.ventrafin`: a guaranteed-owned namespace, but long, and it ties the app's permanent identity to a personal GitHub account.
+- Anything under `in.` (the India TLD): `in` is a Kotlin keyword, which makes the Kotlin sources awkward.
+
+We don't own `ventrafin.com`. That doesn't matter for sideloading or the Play Store, where package names are simply first-come.
+
+**If this changes:** a new package name is a new app. It means reinstalling, creating a new Android OAuth client (with SHA-1s), and setting the lock pattern again.
+
+---
+
+## D11. Mobile state management: Riverpod 3 (no code generation), with go_router
+
+**Decision:** `flutter_riverpod` 3 for state and dependency wiring, without `riverpod_generator`; `go_router` for navigation.
+
+**Why:**
+- **Async-first.** Supabase reads are futures and Realtime is a stream. `FutureProvider`/`StreamProvider` model loading/error/data directly, and a per-table "revision" counter bumped by Realtime makes every screen that shows that table re-fetch automatically, with no manual refresh anywhere.
+- **Testable without a DI framework.** Provider overrides swap in a fake repository, a fixed clock and fake connectivity. That's how the Add-flow widget tests run with no network.
+- **No BuildContext needed** for services (auth, lock, repository), and no codegen step to run or forget on Windows.
+- **go_router** gives real routes per section (D8), declarative redirects (signed out → Login, no pattern yet → Set up lock), and `StatefulShellRoute` so each bottom-nav tab keeps its own stack.
+
+**Rejected:**
+- `provider` + `ChangeNotifier`: older, with a weaker async story and more boilerplate.
+- **Bloc**: a lot of ceremony per feature for a one-user app.
+- **GetX**: global mutable state and poor testability.
+- Plain `setState`: no sane way to share Realtime-driven data across tabs.
+
+---
+
+## D12. Mobile auth & lock details
+
+**Decisions**, within the constraints already set by D6 and ARCHITECTURE § 5:
+- **Native Google Sign-In → `signInWithIdToken`.** There's no browser redirect, so the mobile app needs no redirect URL or deep link.
+- **The Supabase session lives in Keystore-backed secure storage** (`flutter_secure_storage`), replacing supabase_flutter's default plain SharedPreferences. App backup and device-to-device transfer are disabled for the same reason.
+- **The pattern is stored only as salted PBKDF2-HMAC-SHA256** (50,000 iterations, 16-byte random salt), per user, in secure storage.
+  - A 3×3 pattern has fewer than 400k possibilities, so the hash only slows an attacker who already has root access to the phone. The iteration count is stored with each hash and can be raised later.
+  - Wrong attempts are persisted, so killing the app doesn't reset them. After every 5 misses there's a cooldown: 30 s, doubling each time, capped at 15 min.
+- **Re-lock after 60 s in the background** (`kRelockAfterBackground`). That's long enough to check a UPI/bank app mid-entry without unlocking again, and short enough that a phone left on a table is locked.
+- **The lock is an overlay above the navigator**, not a route, so a half-typed entry survives a re-lock.
+- **An ordinary sign-out keeps the pattern; "Forgot pattern?" deletes it** before signing out (D6).
+
+---
+
 ## Open items not yet decided
 
 - Exact backup/export mechanism for guarding against Supabase's lack of free-tier backups (flagged in `PRD.md` § 5, not yet solved).
