@@ -1,0 +1,3 @@
+# Keep LF everywhere. Migration files must stay byte-identical to what was applied
+# to the hosted database (their SHA-256 is compared against schema_migrations).
+* text=auto eol=lf

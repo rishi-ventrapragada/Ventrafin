@@ -1,0 +1,12 @@
+{
+  "name": "ventrafin-tooling",
+  "private": true,
+  "description": "Repo-level tooling only (optional Docker-free pgTAP runner). Schema changes go through the Supabase MCP server; see CLAUDE.md.",
+  "type": "module",
+  "scripts": {
+    "db:test": "node scripts/run-db-tests.mjs"
+  },
+  "devDependencies": {
+    "pg": "^8.23.0"
+  }
+}

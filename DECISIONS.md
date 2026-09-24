@@ -1,0 +1,107 @@
+# Ventrafin — Decision Log
+
+This records what was decided, what was considered and rejected, and why — so future changes are made knowingly rather than accidentally reversing a deliberate tradeoff. Newer decisions supersede older ones where noted.
+
+---
+
+## D1. Local-first + client-side encryption → cloud-only, no encryption
+
+**Original plan:** fully local `drift`/SQLCipher storage, client-side AES-256-GCM encryption before anything reached Supabase, a dedicated key-management scheme (secure storage + QR device pairing + recovery contact).
+
+**Superseded by:** a cloud-only design with **no local database and no client-side encryption**. All data lives directly in Supabase; privacy is enforced entirely by Row Level Security.
+
+**Why the change:** the encrypted/local-first design was solving for a threat model ("protected even if the backend is compromised") that turned out not to match what was actually wanted. The real requirement, confirmed directly, was simpler: *no one but Dad should be able to see the data inside the app* — plus the admin (project owner) being able to see it directly via the Supabase dashboard when needed for support. RLS satisfies exactly that. Encryption and a local database would have added real complexity (key management, offline conflict resolution, no server-side aggregation) to defend against a threat that isn't in scope.
+
+**Accepted tradeoff:** the Supabase project owner *can* technically read all data via the dashboard, since RLS cannot restrict the project owner. This was made explicit and accepted, not overlooked. Two-factor auth on the Supabase account is the mitigation.
+
+**If this changes:** if the threat model ever expands to "not even the admin should read this," client-side encryption would need to be reintroduced, and the schema/sync design in `ARCHITECTURE.md` would need to change substantially (encrypted blobs, key distribution, no server-side categorization triggers).
+
+---
+
+## D2. Desktop Flutter app → separate Vue 3 web app
+
+**Original plan:** one Flutter codebase targeting both Android and Windows desktop.
+
+**Superseded by:** two separate apps — Flutter for Android, a standalone Vue 3 web app (browser-based) for the Windows side.
+
+**Why the change:** explicit preference to try a different web stack rather than reuse Flutter desktop, and a desire for the web app's entry experience to be spreadsheet-like (paste from Excel, in-cell editing) rather than a ported mobile UI. A dedicated web framework with a mature data-grid ecosystem (PrimeVue) fits that better than Flutter desktop widgets.
+
+**Frameworks considered for the web app, in order:**
+- **Astro / Next.js** — rejected as "not different enough" (already familiar tools).
+- **SvelteKit** — considered and initially chosen, then dropped at explicit request for something other than Svelte.
+- **Vue 3 + Vite** — chosen. New to the builder, strong ecosystem, PrimeVue's editable DataTable fits the Excel-paste requirement well.
+- **React + Vite** — noted as an equally-safe fallback if Vue turns out to be a poor fit, but not the pick.
+
+**Consequence:** logic that both apps need identically (categorization, aggregates) must live in Postgres, not in shared Dart/TypeScript, since the two clients no longer share a codebase. See `ARCHITECTURE.md` § 3.
+
+---
+
+## D3. In-app admin role → dashboard-only admin access
+
+**Original plan:** an "admin" role inside the app itself, with its own elevated visibility into user data, enforced via RLS role checks.
+
+**Superseded by:** no admin concept inside the app or the RLS policies at all. The admin (project owner) uses the **Supabase dashboard** directly — which bypasses RLS by nature of being the project owner — instead of a role built into the product.
+
+**Why the change:** the builder's decision. It's simpler (no role column, no conditional policies, no "grant temporary access" UI to build and test) and matches how the admin intends to help: by looking directly at the database when needed, not through the app's UI. It also keeps the app itself private to Dad, who asked for his data to be "private to me for now." The app never shows his data to anyone else; dashboard access is an operational fact of owning the Supabase project, which the builder should make clear to Dad.
+
+**Also rejected along the way:** a "let admin view my data for 24 hours" toggle (temporary RLS-enforced sharing). This was proposed as a middle ground and turned down by the builder in favor of dashboard-only access, which needs no extra UI.
+
+---
+
+## D4. Backend: Supabase vs. Firebase
+
+**Considered:** Firebase (Firestore + Auth + Cloud Functions) as a full alternative backend.
+
+**Decision:** stayed with Supabase.
+
+**Why:** Ventrafin's data is inherently relational (transactions reference accounts and categories; reporting needs grouped aggregates; categorization rules reference categories). Supabase's Postgres + SQL triggers implement the shared categorization/aggregation logic once, for free, in a place both independent clients can rely on identically. Firestore's document model has no real joins or `GROUP BY`-style aggregation, and its equivalent of a shared trigger (Cloud Functions) requires the paid Blaze plan — Spark's free tier doesn't include it. Firebase's advantages (first-class Flutter SDK, no project-pausing on free tier) didn't outweigh fighting a document database's shape for relational data.
+
+**Known limitation accepted either way:** neither platform's free tier includes real backups. A periodic manual/automated export was flagged as a follow-up regardless of backend choice.
+
+---
+
+## D5. Budgets → dropped in favor of month-over-month comparison
+
+**Decision:** no spending limits, caps, or overspend alerts anywhere in the product.
+
+**Why:** direct answer from the primary user ("track spending without limits") overrode the earlier draft, which had proposed per-category budget progress bars. Month-vs-last-month comparison was requested instead and is the actual reporting anchor. Do not reintroduce budget caps without re-confirming — this was a considered removal, not an oversight.
+
+---
+
+## D6. Recovery flow: dropped
+
+**Decision:** no separate reset system (no reset emails, no recovery codes). Instead, the mobile lock screen has a visible **"Forgot pattern?"** option that signs Dad out; he signs back in with Google and sets a new pattern.
+
+**Why:** Dad explicitly asked for a "Forgot password" option to recover access. Because sign-in is through Google, Google's own account recovery is the real safety net, so the "Forgot pattern?" option routes through Google sign-in instead of a bespoke reset mechanism. The option must be visible on the lock screen; don't drop it as redundant. (An earlier draft proposed a "Rishi holds a recovery copy of the key" scheme; that belonged entirely to the abandoned encryption design in D1 and no longer applies.)
+
+---
+
+## D7. UI density: dense/detailed, not simplified
+
+**Decision:** both apps use detailed, information-dense layouts (tables, multiple fields visible at once), not a large-button minimal-friction design.
+
+**Why:** an earlier draft assumed a non-technical older user needs maximal simplicity. Direct feedback corrected this — the primary user is an experienced Excel user and prefers detailed, dense views over simplified ones. Don't over-simplify the UI on the assumption of low technical comfort; the actual constraint is "easy to enter data quickly," not "as few elements on screen as possible."
+
+---
+
+## D8. Navigation: multi-route, not single-scroll
+
+**Decision:** both apps are structured as distinct pages/routes (Dashboard, Transactions, Add, Categories, Accounts, Bills, Reports, Settings), not single long scrolling screens.
+
+**Why:** explicit preference — the primary user prefers clicking between clearly divided sections. This applies to both the Vue web app (Vue Router, real routes) and the Flutter app (bottom nav + distinct screens), even though the web app is technically built and deployed as a single-page application (SPA) — "SPA" here refers to the build/deploy mechanism only, not the navigation experience.
+
+---
+
+## D9. Infra: one new Supabase organization for Ventrafin
+
+**Decision:** Ventrafin lives in its own new Supabase organization/project, separate from any pre-existing Supabase projects on the builder's account or on a collaborator's account.
+
+**Why:** the free-tier 2-active-project cap is per organization. Creating a fresh organization avoided having to pause or delete existing unrelated projects, and keeps Ventrafin's data fully isolated from anything else.
+
+---
+
+## Open items not yet decided
+
+- Exact backup/export mechanism for guarding against Supabase's lack of free-tier backups (flagged in `PRD.md` § 5, not yet solved).
+- Whether Rishi (or another second party) gets any visibility into the data beyond dashboard-level admin access — currently: no, private to the primary user only.
+- Windows Hello / passkey rollout timing — deferred to a later polish phase, contingent on the web app's deployed domain being finalized first (passkeys are origin-bound).

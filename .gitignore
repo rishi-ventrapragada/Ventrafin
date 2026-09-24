@@ -1,0 +1,55 @@
+# ---- Secrets: never commit ----
+.env
+.env.*
+*.env
+*.pem
+*.key
+# Supabase: local secrets, branch data, and CLI link/temp state
+supabase/.env
+supabase/.env.*
+supabase/.temp/
+supabase/.branches/
+supabase/.supabase/
+supabase/volumes/
+supabase/**/*.local.toml
+
+# ---- Node ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+
+# ---- Web (Vue/Vite) ----
+web/dist/
+web/.vite/
+web/coverage/
+.vercel/
+
+# ---- Mobile (Flutter/Android) ----
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/app/google-services.json
+*.jks
+*.keystore
+
+# ---- Claude Code: personal/local settings (shared .mcp.json IS committed) ----
+.claude/settings.local.json
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ---- Allowed: templates with placeholder values only (must stay last) ----
+!**/.env.example

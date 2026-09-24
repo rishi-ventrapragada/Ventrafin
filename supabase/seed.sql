@@ -1,0 +1,15 @@
+-- =============================================================================
+-- Ventrafin — local seed
+--
+-- `supabase db reset` runs this after the migrations, on the LOCAL stack only.
+-- It never runs against the hosted project (`supabase db push` ignores it).
+--
+-- Intentionally empty. Everything the app needs to work lives in migrations,
+-- so the hosted project gets exactly the same data:
+--   * starter categories + default accounts -> created per user at signup
+--     (migrations/*_new_user_setup.sql)
+--   * built-in merchant keyword list        -> private.builtin_keywords
+--     (migrations/*_builtin_categories_and_keywords.sql)
+--
+-- Add local-only demo data here if it's ever useful for UI work.
+-- =============================================================================
