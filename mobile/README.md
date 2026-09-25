@@ -29,7 +29,9 @@ dart run tool/gen_theme_tokens.dart                          # after editing /sh
 flutter build apk --release --dart-define-from-file=config/dev.json
 ```
 
-Google Sign-In only works on a build whose signing key's SHA-1 is registered in an Android OAuth client (see the root setup notes). Debug builds use `%USERPROFILE%\.android\debug.keystore`. Release builds use the key in `android/key.properties` (gitignored); if that file is missing, they fall back to the debug key.
+Google Sign-In only works on a build whose signing key's SHA-1 is registered in an Android OAuth client (see the root setup notes). Debug builds use `%USERPROFILE%\.android\debug.keystore`. Release builds use the key in `android/key.properties` (gitignored); if that file is missing, the release build stops with an error rather than signing with the debug key (a debug-signed APK can't later be updated by a properly signed one without an uninstall, which would lose Dad's lock pattern).
+
+**Releases:** bump `version:` in `pubspec.yaml` (the part after `+` is Android's versionCode and must go up for every APK given to Dad), then run the `flutter build apk --release …` line above. The APK is `build/app/outputs/flutter-apk/app-release.apk`.
 
 Get the SHA-1s with:
 
