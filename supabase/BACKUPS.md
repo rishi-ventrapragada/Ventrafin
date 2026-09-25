@@ -1,5 +1,9 @@
 # Backups: setup, checking, restoring
 
+> **Switched off for now** (`DECISIONS.md` D28). The workflow has no schedule, and the secrets and the role's password
+> were never set up, so no backups are being made. To turn it on, do the one-time setup below, then put back the
+> commented `schedule:` lines in `.github/workflows/backup.yml` and run it once by hand.
+
 Supabase's free plan keeps no backups, and Ventrafin has no server of its own. A GitHub Actions workflow
 (`.github/workflows/backup.yml`) makes one every week instead. Why it works this way: `DECISIONS.md` D27.
 

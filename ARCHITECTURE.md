@@ -195,7 +195,7 @@ create policy "owner can delete own rows" on <table>
 - `auth.uid()` is wrapped in `(select …)` so Postgres evaluates it once per statement.
 - The composite FKs in § 2 close the cross-user-reference gap that RLS alone leaves open.
 
-**One role outside the app bypasses RLS: `ventrafin_backup`** (`DECISIONS.md` D27), the login the weekly backup uses.
+**One role outside the app bypasses RLS: `ventrafin_backup`** (`DECISIONS.md` D27), the login for the weekly backup. The backup is switched off for now (D28), and the role has no password until it is set up.
 - It has BYPASSRLS and SELECT on the `public` tables, plus tables created later via default privileges.
 - It has no write privileges, `default_transaction_read_only = on`, no access to `auth` or `private`, and at most 2 connections.
 - Its password is set once by the owner (as a SCRAM verifier) and exists only in a GitHub Actions secret. Neither app, nor the API, can use it.
@@ -244,7 +244,7 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
 - **Settings**:
   - reminders: daily switch and time, bill master switch and how many days before, notification and exact-alarm permission states, a test notification;
   - the theme picker;
-  - **Your data**: export a CSV (this/last month, this/last financial year, all time, chosen dates) through Android's share sheet (`share_plus`), and a note on backups;
+  - **Your data**: export a CSV (this/last month, this/last financial year, all time, chosen dates) through Android's share sheet (`share_plus`);
   - app lock and sign-out.
 - **Themes** (`DECISIONS.md` D22): `buildAppTheme` builds the `ThemeData` from the generated tokens; the app bar uses the theme's brand colour, cards and sheets stay white on the theme's page colour.
 - **Entry flow**:
@@ -321,7 +321,7 @@ The web app imports the JSON; the phone's `theme_tokens.g.dart` is generated fro
 
 ## 9. What's deliberately absent
 
-- No custom backend server, API layer, or serverless functions — Postgres (via RLS + SQL functions) is the only "backend logic" layer. The one scheduled job, the weekly backup, runs on GitHub Actions against the read-only `ventrafin_backup` role and serves no app traffic (`supabase/BACKUPS.md`).
+- No custom backend server, API layer, or serverless functions — Postgres (via RLS + SQL functions) is the only "backend logic" layer. The weekly backup workflow (GitHub Actions, read-only `ventrafin_backup` role, `supabase/BACKUPS.md`) would be the only scheduled job; it is switched off for now (`DECISIONS.md` D28).
 - No local database or offline cache on either client.
 - No client-side encryption/key management.
 - No in-app admin or shared-viewer role, and no RLS bypass reachable from either client.

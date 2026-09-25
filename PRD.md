@@ -89,7 +89,7 @@ Dad does not want spending limits. **Do not build budget caps or overspend alert
 - **Realtime sync**: a change made on one app should appear on the other within a few seconds, using Supabase Realtime — no manual refresh needed.
 - **UI density**: detailed/dense views, not oversized simplified UI — Dad is an experienced Excel user, not someone who needs hand-holding.
 - **Navigation**: multi-page/multi-route on both apps (sidebar or bottom nav + distinct routes), not single long scrolling screens.
-- **Backups**: since the Supabase free tier has no automatic backups, a periodic (e.g. weekly) export mechanism should exist so data isn't reliant on Supabase alone. Solved in phase 7 with a weekly, encrypted GitHub Actions dump kept for 90 days (`DECISIONS.md` D27, `supabase/BACKUPS.md`).
+- **Backups**: since the Supabase free tier has no automatic backups, a periodic (e.g. weekly) export mechanism should exist so data isn't reliant on Supabase alone. A weekly, encrypted GitHub Actions dump kept for 90 days was built in phase 7 (`DECISIONS.md` D27, `supabase/BACKUPS.md`) but is **switched off for now** (D28). Until it is turned on, CSV export is the only copy outside Supabase.
 
 ## 6. Out of scope (initial build)
 

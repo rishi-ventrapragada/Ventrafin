@@ -24,7 +24,7 @@ Both clients talk directly to Supabase. There is no custom backend server and no
 /shared
   theme-tokens.json   -- color themes, single source shared by both clients
 /.github/workflows
-  backup.yml          -- weekly encrypted data backup (see /supabase/BACKUPS.md)
+  backup.yml          -- weekly encrypted data backup: schedule switched OFF for now (DECISIONS.md D28, /supabase/BACKUPS.md)
 /scripts              -- repo tooling: optional pgTAP runner, backup credential generator
 CLAUDE.md
 PRD.md
@@ -57,7 +57,7 @@ The hosted project is managed through the **Supabase MCP server** (`.mcp.json`, 
 - **After applying, verify:** `list_migrations` must match `/supabase/migrations`, and `get_advisors` (security + performance) should be clean. Fix any findings with new migration files.
 - **Tests** (`/supabase/tests/*.test.sql`, pgTAP) run via MCP inside a transaction that always rolls back, so no test data is left behind. `execute_sql` runs a script as one transaction and returns only the last result, so send the file's statements without `begin;`/`create extension`/`finish(); rollback;`, ending instead with a `do` block that raises the counts (recipe in `/supabase/README.md`). The raised error both reports the result and forces the rollback. pgTAP itself is installed by a migration.
 - **No real data, no user data.** Never insert real data, and never read users' rows (transactions, accounts, categories, etc.), unless the human explicitly asks. Schema/metadata queries are fine.
-- **Secrets stay out of the repo.** The MCP server authenticates via OAuth; `.mcp.json` holds only the project ref. Never write the service_role key, the database password, or OAuth client secrets into any file. The backup's credentials (`BACKUP_DB_URL`, `BACKUP_PASSPHRASE`) live only in GitHub Actions secrets.
+- **Secrets stay out of the repo.** The MCP server authenticates via OAuth; `.mcp.json` holds only the project ref. Never write the service_role key, the database password, or OAuth client secrets into any file. If backups are turned on, their credentials (`BACKUP_DB_URL`, `BACKUP_PASSPHRASE`) live only in GitHub Actions secrets.
 - **Read-only once Dad is using the app.** When Dad starts using the app for real, the MCP connection must be switched to read-only mode (add `&read_only=true` to the server URL in `.mcp.json`). After that, schema changes need the human to deliberately re-enable write access for that change.
 
 ## Build order

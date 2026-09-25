@@ -119,16 +119,6 @@ function signOut() {
           <template #icon><AppIcon name="upload_file" :size="20" /></template>
         </Button>
       </div>
-      <div class="flex items-center gap-3 p-4">
-        <AppIcon name="database" :size="26" class="text-slate-600" />
-        <div>
-          <div class="font-medium">Backups</div>
-          <div class="text-sm text-slate-600">
-            Every week an encrypted copy of your entries is made automatically and kept for 90 days, separately from the
-            app's server, so nothing is lost if the server has a problem. Only the app's administrator can restore it.
-          </div>
-        </div>
-      </div>
     </section>
 
     <section class="card divide-y divide-slate-100">
@@ -184,7 +174,7 @@ function signOut() {
         <div>
           <div class="font-medium">Privacy</div>
           <div class="text-sm text-slate-600">
-            Your entries are stored only in your Ventrafin account (plus the weekly encrypted backup above). This browser
+            Your entries are stored only in your Ventrafin account. This browser
             keeps just your sign-in, the theme, the last account and payment method you used, and whether Windows Hello
             is set up. Windows Hello itself stays in Windows; Ventrafin never sees your face, fingerprint or PIN. Sign out
             on a shared computer.

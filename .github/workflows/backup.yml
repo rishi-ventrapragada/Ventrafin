@@ -13,12 +13,20 @@
 #   BACKUP_PASSPHRASE  encryption passphrase (also kept in a password manager)
 #
 # Scheduled runs only happen from the default branch (main).
+#
+# SWITCHED OFF (DECISIONS.md D28): backups aren't set up for now, so the weekly
+# schedule is removed and nothing runs on its own. The job is otherwise
+# complete. To turn backups on:
+#   1. do the one-time setup in supabase/BACKUPS.md (password + two secrets);
+#   2. put the `schedule` trigger back (the commented lines below);
+#   3. run it once by hand (Actions > Weekly database backup > Run workflow).
+# Running it by hand before the secrets exist just fails with "not set".
 name: Weekly database backup
 
 on:
-  schedule:
-    # Sundays 21:30 UTC = Mondays 03:00 in India, when nobody is entering data.
-    - cron: '30 21 * * 0'
+  # schedule:
+  #   # Sundays 21:30 UTC = Mondays 03:00 in India, when nobody is entering data.
+  #   - cron: '30 21 * * 0'
   workflow_dispatch:
 
 permissions:

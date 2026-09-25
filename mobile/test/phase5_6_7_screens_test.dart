@@ -343,7 +343,8 @@ void main() {
           }),
         ],
       );
-      expect(find.text('Backups'), findsOneWidget);
+      // Backups are switched off (DECISIONS.md D28), so Settings mustn't promise one.
+      expect(find.text('Backups'), findsNothing);
       await tester.tap(find.byKey(const Key('export-tile')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('export-share')));

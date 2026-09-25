@@ -24,7 +24,7 @@ Never change the schema through the dashboard. Add a new migration instead.
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
 
-**Backups** (weekly, encrypted, via GitHub Actions): setup, checking and restoring are in [`BACKUPS.md`](BACKUPS.md).
+**Backups** (weekly, encrypted, via GitHub Actions) are built but **switched off for now** (DECISIONS.md D28). Turning them on, checking them and restoring are in [`BACKUPS.md`](BACKUPS.md).
 
 ## Applying changes (Supabase MCP, not the CLI)
 

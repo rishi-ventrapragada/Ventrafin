@@ -79,7 +79,7 @@ class SettingsScreen extends ConsumerWidget {
             key: const Key('export-tile'),
             leading: const Icon(Icons.file_download_outlined),
             title: const Text('Export transactions (CSV)'),
-            subtitle: const Text('A file for Excel, to share by email, Drive or WhatsApp'),
+            subtitle: const Text('A file for Excel, to share by email, Drive or WhatsApp. To import, use the web app.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
               final count = await showExportSheet(context);
@@ -89,14 +89,6 @@ class SettingsScreen extends ConsumerWidget {
                 );
               }
             },
-          ),
-          const ListTile(
-            leading: Icon(Icons.backup_outlined),
-            title: Text('Backups'),
-            subtitle: Text(
-              "Every week an encrypted copy of your entries is made automatically and kept for 90 days, "
-              "separately from the app's server. To import a CSV file, use Settings on the web app.",
-            ),
           ),
           const Divider(),
           ListTile(title: Text('App lock', style: heading)),

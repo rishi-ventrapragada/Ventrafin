@@ -457,7 +457,22 @@ If longer history is wanted later, the least-effort upgrade is a second, monthly
 
 ---
 
+## D28. Backups switched off for now (supersedes D27's schedule, keeps its design)
+
+**Decision (25 Sep 2026, by the builder):** backups are not set up for now. The weekly workflow is **switched off but kept**, so it can be turned on later without redoing D27.
+- `.github/workflows/backup.yml` no longer has its `schedule` trigger (the cron line is commented out with instructions). Nothing runs on its own, so there are no failure emails for missing secrets. Only the manual "Run workflow" trigger remains; run by hand without the secrets, it stops at its first step with "not set".
+- The secrets `BACKUP_DB_URL` and `BACKUP_PASSPHRASE` were never created. The workflow never ran, so no copy of any data exists outside Supabase.
+- The `ventrafin_backup` role (migration `…142724`) stays in the database. It has **no password**, so nobody can log in as it, and removing it would mean another migration against the live project for no gain. Its pgTAP suite (`09`) still applies.
+- Both apps' Settings no longer mention a weekly backup (the web and phone had a "Backups" note), so Dad isn't told about a copy that doesn't exist. A phone widget test checks the note stays gone.
+- What remains as a safety net: Dad's own CSV export (D25) on either app, and the Supabase dashboard. On the free plan the dashboard has no backups.
+
+**Accepted risk:** until backups are turned on, a lost or deleted Supabase project, or a bulk mistake in the data, can only be recovered from whatever CSV exports exist.
+
+**To turn backups on:** do the one-time setup in `supabase/BACKUPS.md`, restore the `schedule` lines in the workflow, run it once by hand, and put back the Settings notes (see this commit's diff).
+
+---
+
 ## Open items not yet decided
 
 - Whether Rishi (or another second party) gets any visibility into the data beyond dashboard-level admin access — currently: no, private to the primary user only.
-- Whether 90 days of backup history is enough (D27), or a longer-lived monthly copy should be added.
+- Whether to turn backups on (D28), and if so whether 90 days of history is enough (D27) or a longer-lived monthly copy should be added.
