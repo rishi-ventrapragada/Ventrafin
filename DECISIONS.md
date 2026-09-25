@@ -206,7 +206,7 @@ The exact rule, the filler words and test vectors are in `/shared/category-style
   - Ctrl+D fills down;
   - Ctrl+; enters today's date;
   - Ctrl+S saves.
-- **Transactions** uses PrimeVue's DataTable in cell-edit mode: the rows read like the phone's list (icons, badges, colours), and a click turns one cell into an editor.
+- **Transactions** uses PrimeVue's DataTable in cell-edit mode: the rows read like the phone's list (icons, badges, colours), and a click turns one cell into an editor. Cells are also Tab stops, and Enter or F2 opens the editor as in Excel (audit round 1, FIX-7).
 - Category, account, type and "paid by" cells in both are a small **type-to-filter pick list** (`ComboInput`). Typing "gro" offers Groceries, and "gpay" means UPI.
 - Every Add row is **text**, like a spreadsheet cell. Typed rows and rows pasted from Excel go through the same parser (`web/src/lib/entryRow.ts`), which applies the phone's rules:
   - amount > 0;
@@ -462,17 +462,31 @@ If longer history is wanted later, the least-effort upgrade is a second, monthly
 **Decision (25 Sep 2026, by the builder):** backups are not set up for now. The weekly workflow is **switched off but kept**, so it can be turned on later without redoing D27.
 - `.github/workflows/backup.yml` no longer has its `schedule` trigger (the cron line is commented out with instructions). Nothing runs on its own, so there are no failure emails for missing secrets. Only the manual "Run workflow" trigger remains; run by hand without the secrets, it stops at its first step with "not set".
 - The secrets `BACKUP_DB_URL` and `BACKUP_PASSPHRASE` were never created. The workflow never ran, so no copy of any data exists outside Supabase.
-- The `ventrafin_backup` role (migration `…142724`) stays in the database. It has **no password**, so nobody can log in as it, and removing it would mean another migration against the live project for no gain. Its pgTAP suite (`09`) still applies.
+- The `ventrafin_backup` role (migration `…142724`) stays in the database. It has **no password** and, since the audit round 1 migration, is **NOLOGIN**, so nobody can log in as it. Removing it would mean another migration against the live project for no gain. Its pgTAP suite (`09`) still applies.
 - Both apps' Settings no longer mention a weekly backup (the web and phone had a "Backups" note), so Dad isn't told about a copy that doesn't exist. A phone widget test checks the note stays gone.
 - What remains as a safety net: Dad's own CSV export (D25) on either app, and the Supabase dashboard. On the free plan the dashboard has no backups.
 
+**Confirmed (audit round 1):** the builder decided against backups; the audit's backup finding is closed as won't fix (AUDIT.md FIX-10) and is not to be raised again.
+
 **Accepted risk:** until backups are turned on, a lost or deleted Supabase project, or a bulk mistake in the data, can only be recovered from whatever CSV exports exist.
 
-**To turn backups on:** do the one-time setup in `supabase/BACKUPS.md`, restore the `schedule` lines in the workflow, run it once by hand, and put back the Settings notes (see this commit's diff).
+**To turn backups on:** do the one-time setup in `supabase/BACKUPS.md` (its `alter role … with login password …` line also switches LOGIN back on), restore the `schedule` lines in the workflow, run it once by hand, and put back the Settings notes (see this commit's diff).
+
+---
+
+## D29. Accounts and categories are archived, never deleted; one account always stays active
+
+**Decision (audit round 1, AUDIT.md FIX-4):** PRD § 4.1 and § 4.3 ask for adding, renaming and archiving accounts and categories. Both apps now do it, and `accounts` gained an `archived` flag like `categories`.
+- **Archive, not delete.** Transactions and bills reference accounts and categories through `NO ACTION` foreign keys, so a used one can't be deleted, and deleting only unused ones would make the button work sometimes and fail other times. Archiving always works: the account or category leaves every picker for new entries and bills, old entries keep showing it, and it can be restored at any time.
+- **Names stay unique across archived rows** (the existing unique indexes). Adding "Food" while an archived "Food" exists is refused with a message that says it is archived, so Dad restores it instead of ending up with two.
+- **One active account at least**, enforced by a trigger (`accounts_keep_one_active`), not only by the apps: entry needs an account, and the phone and web could otherwise each archive "the other last one" at the same moment. The apps also disable Archive on the last active account and say why.
+- **New categories take the database's icon and colour** (the D13 defaults: a keyword-based icon guess and the first unused palette colour). The add form asks only for the name and kind; Dad changes the icon or colour afterwards in the existing edit form. That keeps one defaults rule, in Postgres.
+- **Archived categories are still skipped by auto-categorization** (unchanged, `ARCHITECTURE.md` § 3).
+
+**Rejected:** deleting unused accounts/categories (inconsistent, see above); a separate "hidden" flag per picker (one flag is enough); cascading an archive to the bills that use an account (a bill paid from an archived account still works, and Dad can change it in the bill form).
 
 ---
 
 ## Open items not yet decided
 
 - Whether Rishi (or another second party) gets any visibility into the data beyond dashboard-level admin access — currently: no, private to the primary user only.
-- Whether to turn backups on (D28), and if so whether 90 days of history is enough (D27) or a longer-lived monthly copy should be added.

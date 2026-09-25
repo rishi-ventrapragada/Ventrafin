@@ -36,7 +36,7 @@ Conventions that apply to every table:
 - **Owner.** Every user-owned table has `owner_id uuid not null default auth.uid() references auth.users on delete cascade`. Clients may omit it; RLS still verifies it. `profiles` uses its `id` (= the auth user id) as the owner.
 - **Money** is integer paise stored as **`bigint`**. `integer` would cap amounts at about ₹2.1 crore. Amounts must be `> 0` and `< 10^15`, which keeps every value inside JavaScript's safe-integer range, since PostgREST sends bigint as a JSON number.
 - **Composite foreign keys.** Child rows reference parents through `(owner_id, x_id) → parent (owner_id, id)`. Foreign-key checks bypass RLS, so a plain FK would let a user attach a row to someone else's account or category by guessing its UUID. The composite FK makes cross-user references impossible at the database level.
-- **Deleting in-use parents.** An account or category that is still referenced cannot be deleted. Categories are archived instead. (The FKs are `NO ACTION`, so deleting an auth user still cascades cleanly.)
+- **Deleting in-use parents.** An account or category that is still referenced cannot be deleted. Both are archived instead (`DECISIONS.md` D29). (The FKs are `NO ACTION`, so deleting an auth user still cascades cleanly.)
 - Every table has `created_at` and `updated_at` (maintained by trigger).
 - Enum-like text columns have `CHECK` constraints listing the allowed values.
 
@@ -59,6 +59,7 @@ Clients can select, insert and update their own profile but not delete it; its l
 | owner_id | uuid | |
 | name | text | 1–60 chars, unique per user (case-insensitive) |
 | type | text | `cash` / `bank` / `credit` |
+| archived | boolean | default false. Archived accounts leave the pickers but keep their transactions and bills. A trigger refuses to archive the last active one (`Keep at least one active account.`, SQLSTATE 23514) |
 
 ### `categories`
 | column | type | notes |
@@ -192,10 +193,12 @@ create policy "owner can delete own rows" on <table>
 - `anon` has **no** table privileges at all.
 - `authenticated` has only SELECT/INSERT/UPDATE/DELETE, not the TRUNCATE/REFERENCES/TRIGGER that Supabase's default grants would include.
 - No SECURITY DEFINER function in the API-exposed `public` schema is callable by `anon`/`authenticated`.
+- Functions in `private` have no PUBLIC execute; only the helpers that column defaults and triggers need are granted to `authenticated`. A new private function must `revoke execute … from public` too (per-schema default privileges can't remove PostgreSQL's built-in PUBLIC grant).
+- `postgres` has no default privileges for `anon` on new tables, sequences or functions in `public`. New public functions still `revoke execute … from public, anon` explicitly, for the same built-in PUBLIC grant.
 - `auth.uid()` is wrapped in `(select …)` so Postgres evaluates it once per statement.
 - The composite FKs in § 2 close the cross-user-reference gap that RLS alone leaves open.
 
-**One role outside the app bypasses RLS: `ventrafin_backup`** (`DECISIONS.md` D27), the login for the weekly backup. The backup is switched off for now (D28), and the role has no password until it is set up.
+**One role outside the app bypasses RLS: `ventrafin_backup`** (`DECISIONS.md` D27), the login for the weekly backup. The backup is switched off for now (D28): the role is NOLOGIN and has no password until it is set up.
 - It has BYPASSRLS and SELECT on the `public` tables, plus tables created later via default privileges.
 - It has no write privileges, `default_transaction_read_only = on`, no access to `auth` or `private`, and at most 2 connections.
 - Its password is set once by the owner (as a SCRAM verifier) and exists only in a GitHub Actions secret. Neither app, nor the API, can use it.
@@ -259,7 +262,11 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
   - Accounts and payment methods have fixed icons.
   - The icons sit inside the existing two-line rows, so the list is no taller (a widget test checks this).
 - **Dashboard** adds a this-month spending-by-category donut and a this-vs-last-month table per category, from `get_month_comparison`.
-- **Categories screen**: rename a category (name checked against the same rules as the database: 1–40 characters, not "Uncategorized", unique per kind) and change its icon and colour.
+- **Categories screen**: add a category (name and kind; the database picks the icon and colour), rename it (name checked against the same rules as the database: 1–40 characters, not "Uncategorized", unique per kind), change its icon and colour, archive and restore it.
+- **Accounts screen**: add, rename (and change type), archive and restore accounts. Pickers for new entries and bills list active accounts and categories only; an archived one still shows on old entries, and as "<name> (archived)" when such an entry is edited.
+- **Back button**: inside a tab it goes back within the tab; at a tab's first screen it returns to Dashboard (a `PopScope` in the shell); on Dashboard it leaves the app. Jumps between sections are pushed full-screen over the tabs (`/dashboard/reports`, `/bills/settings`, `/more/settings/bills`), so back returns to where they started. While the lock screen is up, `LockAwareBackButtonDispatcher` keeps back away from the screens underneath (the lock gate sits above the router's navigator, where a `PopScope` would have no route). Forms and sheets ask "Discard changes?" before throwing away edits (`core/unsaved_changes.dart`).
+- **Transactions**: a month at a time, with an app-bar search over all months (description, category, account, exact amount; `fetchTransactionsBetween`, only while searching) and a filter menu (type, category including Uncategorized). The Uncategorized count on the summary and the Dashboard's uncategorized card open that filter.
+- **Load errors** show the plain message and Retry everywhere (`LoadError`); the Dashboard also has pull-to-refresh.
 - **FLAG_SECURE** (D15): blank in recent apps, no screenshots or screen recording.
 
 ## 7. Web app (Vue 3)
@@ -292,7 +299,10 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
     - saves in 500-row batches with fixed ids;
     - sends rows with problems to the Add grid.
 - **Windows Hello**: `src/data/passkeys.ts` (Supabase implementation, support checks, plain-language errors), Settings › Sign in with Windows Hello, and the extra button on `/login`.
-- **Transactions** uses PrimeVue's DataTable in cell-edit mode. A finished cell edit becomes a one-column update (`src/lib/cellEdit.ts`); a category change is what feeds the learning trigger. Saves are shown straight away and rolled back with a message if they fail.
+- **Transactions** uses PrimeVue's DataTable in cell-edit mode. A finished cell edit becomes a one-column update (`src/lib/cellEdit.ts`); a category change is what feeds the learning trigger. Saves are shown straight away and rolled back with a message if they fail. Cells are reachable by keyboard (Enter or F2 edits). Search can cover all months. A delete asks first (Cancel focused) and offers Undo for 5 s, which re-inserts the rows with their ids.
+- **Categories** and **Accounts** pages: add, archive and restore (and rename/restyle), as on the phone (§ 6, `DECISIONS.md` D29).
+- **Dialogs** open with focus on their first field and submit on Enter (`submitOnEnter`); destructive confirms focus Cancel. The bill, category and account forms ask "Discard changes?" before X or Escape throws away edits, and the Add page asks the same before leaving with unsaved rows (the browser's own prompt covers closing the tab or F5).
+- **Load errors** show the plain message and a Retry button on every page (`components/LoadError.vue`).
 - **Money** stays integer paise in state (the database's `< 10^15` bound keeps every value a safe JavaScript integer). Rupees appear only in formatted strings with Indian grouping (`₹1,23,456.00`).
 - **Dates** are ISO strings; "today" is Asia/Kolkata whatever the PC's timezone.
 - **Visuals** match the phone:
