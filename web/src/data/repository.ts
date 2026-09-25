@@ -67,6 +67,20 @@ export interface FinanceRepository {
   /** Deletes the rows and returns how many were actually deleted. */
   deleteTransactions(ids: readonly string[]): Promise<number>
 
+  /**
+   * Every transaction dated `from`..`to` (inclusive), oldest first, fetched
+   * in pages, so a long range isn't cut off. The import uses it to spot
+   * rows that are already saved.
+   */
+  fetchTransactionsBetween(from: string, to: string): Promise<Txn[]>
+
+  /**
+   * `export_transactions_csv()`: the CSV file both apps save, built in
+   * Postgres. `from`/`to` are inclusive (null = no limit); `ids` keeps only
+   * those transactions.
+   */
+  exportTransactionsCsv(args: { from: string | null; to: string | null; ids?: readonly string[] }): Promise<string>
+
   /** Rename / restyle a category. The database keeps a renamed built-in category's keywords. */
   updateCategory(id: string, edit: CategoryEdit): Promise<Category>
 

@@ -107,6 +107,13 @@ const outlined = [
   'trending_up',
   'radio_button_checked',
   'radio_button_unchecked',
+  // CSV import/export, Windows Hello (increment 5)
+  'download',
+  'upload_file',
+  'content_copy',
+  'passkey',
+  'fingerprint',
+  'database',
 ]
 
 // Keys are Material Icons names (what the database stores and Flutter draws).

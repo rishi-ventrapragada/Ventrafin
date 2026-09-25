@@ -15,6 +15,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AccountAvatar from '@/components/AccountAvatar.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import ComboInput from '@/components/ComboInput.vue'
+import ExportDialog from '@/components/ExportDialog.vue'
 import MerchantBadge from '@/components/MerchantBadge.vue'
 import MonthSwitcher from '@/components/MonthSwitcher.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
@@ -23,11 +24,14 @@ import { vFocus } from '@/directives'
 import { cellEdit, editorText, isEditableField, type EditableField } from '@/lib/cellEdit'
 import { readableTextColor } from '@/lib/categoryStyle'
 import {
+  addDays,
   compareMonths,
   formatDateIndian,
   monthKey,
   monthLabel,
   monthOf,
+  monthStart,
+  nextMonth,
   parseMonthKey,
   shortWeekday,
   type YearMonth,
@@ -158,6 +162,20 @@ const categoryFilterOptions = computed(() => [
   { value: 'transfers', label: 'Transfers', kind: 'transfer' as const, category: null },
   ...sortByName(categories.value).map((c) => ({ value: c.id, label: c.name, kind: 'category' as const, category: c })),
 ])
+
+// ------------------------------------------------------------ export (CSV)
+
+const exportVisible = ref(false)
+/** The export dialog's first choice: this month, only the rows shown when filtered. */
+const shownForExport = computed(() => {
+  const narrowed = filtered.value || search.value.trim() !== ''
+  return {
+    range: { from: monthStart(month.value), to: addDays(monthStart(nextMonth(month.value)), -1) },
+    ids: narrowed ? rows.value.map((t) => t.id) : null,
+    count: rows.value.length,
+    label: narrowed ? `${monthLabel(month.value)}, filtered as on screen` : monthLabel(month.value),
+  }
+})
 
 function clearFilters() {
   accountFilter.value = 'all'
@@ -373,6 +391,9 @@ function rowClass(t: Row) {
           @click="confirmDelete(selected)"
         >
           <template #icon><AppIcon name="delete" :size="20" /></template>
+        </Button>
+        <Button label="Export" severity="secondary" outlined data-testid="open-export" @click="exportVisible = true">
+          <template #icon><AppIcon name="download" :size="20" /></template>
         </Button>
         <RouterLink v-slot="{ navigate }" to="/add" custom>
           <Button label="Add" @click="navigate">
@@ -636,6 +657,8 @@ function rowClass(t: Row) {
         <Button label="Make it a transfer" :disabled="!transfer.to" @click="confirmTransfer" />
       </template>
     </Dialog>
+
+    <ExportDialog v-if="exportVisible" v-model:visible="exportVisible" :shown="shownForExport" />
   </div>
 </template>
 

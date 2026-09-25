@@ -1,17 +1,31 @@
 <script setup lang="ts">
-// Google is the only way in (no passwords to manage or reset, PRD § 4.10).
+// Google is the main way in (no passwords to manage or reset, PRD § 4.10).
+// Windows Hello is offered as well on a browser where it was set up in
+// Settings, when the PC and the server support it (DECISIONS.md D26).
 import Button from 'primevue/button'
-import { ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
 import { useApp } from '@/data/appContext'
-import { rememberNextPath } from '@/data/auth'
+import { rememberNextPath, safeNextPath } from '@/data/auth'
+import { classifyPasskeyError, describePasskeyError, hasPasskeyHint, rememberPasskeyHint, type PasskeySupport } from '@/data/passkeys'
 import { describeError } from '@/lib/errors'
 
 const app = useApp()
 const route = useRoute()
+const router = useRouter()
 const busy = ref(false)
+const passkeyBusy = ref(false)
 const error = ref<string | null>(typeof route.query.error === 'string' ? route.query.error : null)
+/** Set once the PC, the browser and the server can all do it, and it was set up here. */
+const passkey = ref<PasskeySupport | null>(null)
+
+onMounted(async () => {
+  if (!hasPasskeyHint()) return
+  const [support, on] = await Promise.all([app.passkeys.deviceSupport(), app.passkeys.serverEnabled()])
+  if (support !== 'none' && on) passkey.value = support
+})
 
 async function signIn() {
   error.value = null
@@ -28,6 +42,29 @@ async function signIn() {
     error.value = describeError(e)
   }
 }
+
+async function signInWithPasskey() {
+  error.value = null
+  if (!app.online.value) {
+    error.value = "There's no internet connection. Connect and try again."
+    return
+  }
+  passkeyBusy.value = true
+  try {
+    await app.passkeys.signIn()
+    await router.replace(safeNextPath(route.query.next) ?? '/dashboard')
+  } catch (e) {
+    const problem = classifyPasskeyError(e)
+    // The passkey was removed from the account: stop offering it here.
+    if (problem === 'not-registered') {
+      rememberPasskeyHint(false)
+      passkey.value = null
+    }
+    error.value = problem === 'cancelled' ? null : describePasskeyError(e, 'sign-in')
+  } finally {
+    passkeyBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -39,6 +76,7 @@ async function signIn() {
       <Button
         class="w-full"
         :loading="busy"
+        :disabled="passkeyBusy"
         label="Sign in with Google"
         data-testid="google-sign-in"
         @click="signIn"
@@ -51,6 +89,19 @@ async function signIn() {
             <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.8c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z" />
           </svg>
         </template>
+      </Button>
+      <Button
+        v-if="passkey"
+        class="mt-3 w-full"
+        severity="secondary"
+        outlined
+        :loading="passkeyBusy"
+        :disabled="busy"
+        :label="passkey === 'platform' ? 'Sign in with Windows Hello' : 'Sign in with a passkey'"
+        data-testid="passkey-sign-in"
+        @click="signInWithPasskey"
+      >
+        <template #icon><AppIcon name="fingerprint" :size="22" class="mr-1" /></template>
       </Button>
       <p v-if="error" class="mt-4 text-sm text-expense" role="alert">{{ error }}</p>
       <p class="mt-6 text-sm text-slate-600">Your data is private to your Google account.</p>

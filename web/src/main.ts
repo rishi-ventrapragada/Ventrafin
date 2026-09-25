@@ -5,6 +5,7 @@ import App from './App.vue'
 import { APP_CONTEXT, createAppContext } from './data/appContext'
 import { createSupabaseAuth } from './data/auth'
 import { createLocalEntryPrefs } from './data/entryPrefs'
+import { createSupabasePasskeys } from './data/passkeys'
 import { createSupabase, readConfig } from './data/supabaseClient'
 import { SupabaseFinanceRepository } from './data/supabaseRepository'
 import SetupNeededPage from './pages/SetupNeededPage.vue'
@@ -24,6 +25,7 @@ if ('problem' in config) {
   const context = createAppContext({
     repo: new SupabaseFinanceRepository(client),
     auth,
+    passkeys: createSupabasePasskeys(client, config),
     prefs: createLocalEntryPrefs(),
   })
   const app = createApp(App)

@@ -49,6 +49,9 @@ async function run<T>(request: PromiseLike<Result<T>>): Promise<T> {
 const TXN_COLUMNS =
   'id, date, amount_paise, description, type, account_id, to_account_id, category_id, payment_method, auto_categorized, owner_id, created_at, updated_at'
 
+/** Supabase's default "max rows" per API response. */
+const TXN_PAGE = 1000
+
 export class SupabaseFinanceRepository implements FinanceRepository {
   constructor(private readonly client: AppSupabaseClient) {}
 
@@ -127,6 +130,37 @@ export class SupabaseFinanceRepository implements FinanceRepository {
     // .select() makes a no-op delete (already gone) visible instead of silently "succeeding".
     const deleted = await run(this.client.from('transactions').delete().in('id', [...ids]).select('id'))
     return deleted.length
+  }
+
+  async fetchTransactionsBetween(from: string, to: string) {
+    const all: Txn[] = []
+    // The API returns at most TXN_PAGE rows per request (Supabase's max rows).
+    for (let offset = 0; ; offset += TXN_PAGE) {
+      const rows = await run(
+        this.client
+          .from('transactions')
+          .select(TXN_COLUMNS)
+          .gte('date', from)
+          .lte('date', to)
+          .order('date')
+          .order('id')
+          .range(offset, offset + TXN_PAGE - 1),
+      )
+      all.push(...rows.map(txnFromRow))
+      if (rows.length < TXN_PAGE) return all
+    }
+  }
+
+  async exportTransactionsCsv(args: { from: string | null; to: string | null; ids?: readonly string[] }) {
+    const csv = await run(
+      this.client.rpc('export_transactions_csv', {
+        ...(args.from ? { p_from: args.from } : {}),
+        ...(args.to ? { p_to: args.to } : {}),
+        ...(args.ids ? { p_ids: [...args.ids] } : {}),
+      }),
+    )
+    if (typeof csv !== 'string') throw new AppError('export_transactions_csv returned no file')
+    return csv
   }
 
   async updateCategory(id: string, edit: CategoryEdit) {

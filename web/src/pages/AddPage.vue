@@ -14,6 +14,7 @@ import PasteDialog from '@/components/add/PasteDialog.vue'
 import SavedPanel from '@/components/add/SavedPanel.vue'
 import { newRowKey, type GridRow } from '@/components/add/gridRow'
 import { useApp } from '@/data/appContext'
+import { takeHandedOffRows } from '@/data/gridHandoff'
 import { formatDateIndian } from '@/lib/dates'
 import {
   AUTO_CATEGORY,
@@ -291,7 +292,23 @@ function onPageKeydown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description')))
+onMounted(() => {
+  // Rows from a CSV import (Settings) that need fixing before they can be saved.
+  const handed = takeHandedOffRows()
+  if (handed.length) {
+    const newRows = handed.map((raw) => ({ key: newRowKey(), raw }))
+    placeInGrid(newRows)
+    newRows.forEach((r) => touched.value.add(r.key))
+    toast.add({
+      severity: 'info',
+      summary: `${newRows.length} imported row${newRows.length === 1 ? '' : 's'} to fix`,
+      detail: 'The red cells say what to change. Then Save.',
+      life: 6000,
+    })
+    return
+  }
+  void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'))
+})
 </script>
 
 <template>

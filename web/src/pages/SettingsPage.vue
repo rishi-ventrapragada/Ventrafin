@@ -2,9 +2,12 @@
 import Button from 'primevue/button'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import ExportDialog from '@/components/ExportDialog.vue'
+import PasskeySection from '@/components/PasskeySection.vue'
+import ImportDialog from '@/components/import/ImportDialog.vue'
 import { useApp } from '@/data/appContext'
 import { describeError } from '@/lib/errors'
 import { formatTimeOfDay } from '@/lib/models'
@@ -18,6 +21,8 @@ const live = computed(() =>
   app.live.value === 'live' ? 'Connected. Changes on the phone show here within seconds.' : 'Reconnecting to live updates…',
 )
 const profile = computed(() => app.profile.data.value)
+const exportVisible = ref(false)
+const importVisible = ref(false)
 
 async function pickTheme(id: ThemeId) {
   if (id === app.themeId.value) return
@@ -88,6 +93,44 @@ function signOut() {
       </div>
     </section>
 
+    <section class="card divide-y divide-slate-100" data-testid="your-data">
+      <div class="flex items-center gap-3 p-4">
+        <AppIcon name="download" :size="26" class="text-slate-600" />
+        <div class="mr-auto">
+          <div class="font-medium">Download transactions for Excel</div>
+          <div class="text-sm text-slate-600">
+            A CSV file for a month, a financial year, any dates or everything. The phone can share the same file.
+          </div>
+        </div>
+        <Button label="Export…" severity="secondary" outlined data-testid="settings-export" @click="exportVisible = true">
+          <template #icon><AppIcon name="download" :size="20" /></template>
+        </Button>
+      </div>
+      <div class="flex items-center gap-3 p-4">
+        <AppIcon name="upload_file" :size="26" class="text-slate-600" />
+        <div class="mr-auto">
+          <div class="font-medium">Import transactions from a CSV file</div>
+          <div class="text-sm text-slate-600">
+            A bank statement or spreadsheet saved as CSV. You see every row before anything is saved, and rows already in
+            Ventrafin are skipped. To copy a few rows, Paste from Excel on the Add page is quicker.
+          </div>
+        </div>
+        <Button label="Import…" severity="secondary" outlined data-testid="settings-import" @click="importVisible = true">
+          <template #icon><AppIcon name="upload_file" :size="20" /></template>
+        </Button>
+      </div>
+      <div class="flex items-center gap-3 p-4">
+        <AppIcon name="database" :size="26" class="text-slate-600" />
+        <div>
+          <div class="font-medium">Backups</div>
+          <div class="text-sm text-slate-600">
+            Every week an encrypted copy of your entries is made automatically and kept for 90 days, separately from the
+            app's server, so nothing is lost if the server has a problem. Only the app's administrator can restore it.
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="card divide-y divide-slate-100">
       <div class="flex items-start gap-3 p-4" data-testid="reminders-summary">
         <AppIcon name="notifications" :size="26" class="mt-0.5 text-slate-600" />
@@ -128,6 +171,7 @@ function signOut() {
           <template #icon><AppIcon name="logout" :size="20" /></template>
         </Button>
       </div>
+      <PasskeySection />
       <div class="flex items-center gap-3 p-4">
         <AppIcon name="sync" :size="26" class="text-slate-600" />
         <div>
@@ -140,13 +184,17 @@ function signOut() {
         <div>
           <div class="font-medium">Privacy</div>
           <div class="text-sm text-slate-600">
-            Your entries are stored only in your Ventrafin account. This browser keeps just your sign-in, the theme, and
-            the last account and payment method you used. Sign out on a shared computer. Windows Hello sign-in is planned
-            for a later update.
+            Your entries are stored only in your Ventrafin account (plus the weekly encrypted backup above). This browser
+            keeps just your sign-in, the theme, the last account and payment method you used, and whether Windows Hello
+            is set up. Windows Hello itself stays in Windows; Ventrafin never sees your face, fingerprint or PIN. Sign out
+            on a shared computer.
           </div>
         </div>
       </div>
     </section>
     <p class="sr-only">Current theme: {{ themeById(app.themeId.value).name }}</p>
+
+    <ExportDialog v-if="exportVisible" v-model:visible="exportVisible" />
+    <ImportDialog v-if="importVisible" v-model:visible="importVisible" />
   </div>
 </template>

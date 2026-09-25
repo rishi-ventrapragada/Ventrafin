@@ -23,6 +23,7 @@ import type { Account, Category, Profile } from '@/lib/models'
 import { applyTheme, rememberedThemeId, themeById, type ThemeId } from '@/lib/theme'
 import type { AuthService } from './auth'
 import type { EntryPrefs } from './entryPrefs'
+import { noPasskeys, type PasskeyService } from './passkeys'
 import { REALTIME_TABLES, type FinanceRepository, type LiveStatus, type RealtimeTable } from './repository'
 
 /** Coalesces bursts (a paste of 50 rows on the phone or here) into one re-fetch. */
@@ -42,6 +43,8 @@ export interface LiveQuery<T> {
 export interface AppContext {
   readonly repo: FinanceRepository
   readonly auth: AuthService
+  /** Windows Hello sign-in (an extra option next to Google). */
+  readonly passkeys: PasskeyService
   readonly clock: Clock
   readonly prefs: EntryPrefs
   /** Today in India (`yyyy-mm-dd`); ticks over at midnight IST. */
@@ -79,6 +82,8 @@ export interface AppContextOptions {
   repo: FinanceRepository
   auth: AuthService
   prefs: EntryPrefs
+  /** Omitted: no passkey option anywhere. */
+  passkeys?: PasskeyService
   clock?: Clock
   /** Tests pass a ref; the app follows navigator.onLine. */
   online?: Ref<boolean>
@@ -239,6 +244,7 @@ export function createAppContext(opts: AppContextOptions): AppContext {
   return {
     repo,
     auth,
+    passkeys: opts.passkeys ?? noPasskeys,
     clock,
     prefs,
     today: readonly(today),

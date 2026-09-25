@@ -3,6 +3,7 @@
 import type { CategoryEdit, DataChange, FinanceRepository, LiveStatus, NewTxn } from '@/data/repository'
 import { compareMonths, monthKey, monthOf, nextMonth, previousMonth, type YearMonth } from '@/lib/dates'
 import { AppError } from '@/lib/errors'
+import { methodLabel } from '@/lib/models'
 import type {
   Account,
   Bill,
@@ -222,6 +223,50 @@ export class FakeRepository implements FinanceRepository {
     this.txns = this.txns.filter((t) => !ids.includes(t.id))
     this.emit({ table: 'transactions' })
     return before - this.txns.length
+  }
+
+  async fetchTransactionsBetween(from: string, to: string) {
+    await this.wait()
+    return this.txns
+      .filter((t) => t.date >= from && t.date <= to)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+      .map((t) => ({ ...t }))
+  }
+
+  exportCalls: { from: string | null; to: string | null; ids?: readonly string[] }[] = []
+  failNextExportWith: unknown = null
+
+  /**
+   * A rough imitation of export_transactions_csv() (the real format is
+   * pinned by supabase/tests/08_csv_export.test.sql): enough for the
+   * component tests and the demo page.
+   */
+  async exportTransactionsCsv(args: { from: string | null; to: string | null; ids?: readonly string[] }) {
+    this.exportCalls.push(args)
+    await this.wait()
+    const failure = this.failNextExportWith
+    if (failure) {
+      this.failNextExportWith = null
+      throw failure
+    }
+    const cell = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+    const name = (id: string | null) => this.accounts.find((a) => a.id === id)?.name ?? ''
+    const lines = this.txns
+      .filter((t) => (!args.from || t.date >= args.from) && (!args.to || t.date <= args.to) && (!args.ids || args.ids.includes(t.id)))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+      .map((t) =>
+        [
+          t.date,
+          cell(t.description),
+          `${Math.floor(t.amountPaise / 100)}.${String(t.amountPaise % 100).padStart(2, '0')}`,
+          t.type[0]!.toUpperCase() + t.type.slice(1),
+          t.type === 'transfer' ? '' : cell(this.categories.find((c) => c.id === t.categoryId)?.name ?? 'Uncategorized'),
+          cell(name(t.accountId)),
+          cell(name(t.toAccountId)),
+          t.paymentMethod ? methodLabel(t.paymentMethod) : '',
+        ].join(','),
+      )
+    return ['Date,Description,Amount (₹),Type,Category,Account,To account,Paid by', ...lines].join('\r\n') + '\r\n'
   }
 
   async updateCategory(id: string, edit: CategoryEdit) {

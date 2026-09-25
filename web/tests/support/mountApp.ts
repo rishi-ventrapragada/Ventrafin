@@ -8,6 +8,7 @@ import { createMemoryHistory, RouterView } from 'vue-router'
 import { APP_CONTEXT, createAppContext, type AppContext } from '@/data/appContext'
 import type { AppUser, AuthService } from '@/data/auth'
 import { createMemoryEntryPrefs, type EntryPrefs } from '@/data/entryPrefs'
+import type { PasskeyService } from '@/data/passkeys'
 import { createAppRouter } from '@/router'
 import { installUi } from '@/ui'
 import { FakeRepository, fixedClock } from './fakeRepository'
@@ -33,6 +34,7 @@ export interface MountOptions {
   signedIn?: boolean
   /** Subscribe to the fake repository's change feed (like Supabase Realtime). */
   realtime?: boolean
+  passkeys?: PasskeyService
 }
 
 export async function mountApp({
@@ -42,10 +44,11 @@ export async function mountApp({
   path,
   signedIn = true,
   realtime = false,
+  passkeys,
 }: MountOptions) {
   const onlineRef = ref(online)
   const auth = fakeAuth(signedIn ? undefined : null)
-  const ctx: AppContext = createAppContext({ repo, auth, prefs, clock: fixedClock, online: onlineRef, realtime })
+  const ctx: AppContext = createAppContext({ repo, auth, passkeys, prefs, clock: fixedClock, online: onlineRef, realtime })
   const router = createAppRouter(auth, createMemoryHistory())
   const Host = defineComponent({
     render: () => [h(RouterView), h(Toast), h(ConfirmDialog)],

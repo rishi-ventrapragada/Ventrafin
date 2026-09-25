@@ -57,6 +57,14 @@ const SINGLE_ROLES: ReadonlySet<ColumnRole> = new Set(['date', 'amount', 'withdr
  * are dropped.
  */
 export function splitClipboard(text: string): string[][] {
+  return splitDelimited(text, '\t')
+}
+
+/**
+ * The same for any separator: tab for the clipboard, comma (or semicolon)
+ * for CSV files, which quote cells the same way (RFC 4180).
+ */
+export function splitDelimited(text: string, separator: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let cell = ''
@@ -78,7 +86,7 @@ export function splitClipboard(text: string): string[][] {
       cellStart = false
       continue
     }
-    if (ch === '\t') {
+    if (ch === separator) {
       row.push(cell)
       cell = ''
       cellStart = true
@@ -183,7 +191,11 @@ export interface PasteTable {
 }
 
 export function readPaste(text: string, today: string): PasteTable {
-  const all = splitClipboard(text)
+  return readTable(splitClipboard(text), today)
+}
+
+/** Rows of cells (pasted, or from a CSV file) as a table, with the heading row detected. */
+export function readTable(all: readonly string[][], today: string): PasteTable {
   const columnCount = Math.max(0, ...all.map((r) => r.length))
   const padded = all.map((r) => [...r, ...Array<string>(columnCount - r.length).fill('')])
   if (padded.length > 0 && isHeadingRow(padded[0]!, today)) {

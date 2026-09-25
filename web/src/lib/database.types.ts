@@ -290,6 +290,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      export_transactions_csv: {
+        Args: { p_from?: string; p_ids?: string[]; p_to?: string }
+        Returns: string
+      }
       get_bill_schedule: {
         Args: { p_today?: string }
         Returns: {
