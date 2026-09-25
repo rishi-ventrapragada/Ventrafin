@@ -14,6 +14,10 @@ import '../../data/providers.dart';
 import '../reminders/reminder_plan.dart';
 import 'bill_visuals.dart';
 
+/// Settings, pushed over the tabs from Bills (the bell, "reminders are
+/// switched off"), so back returns to Bills.
+const String kBillsSettingsRoute = '/bills/settings';
+
 /// Recurring bills and EMIs, soonest due first, with overdue ones in red.
 /// Due dates and status come from Postgres (`get_bill_schedule`), the same
 /// as on the web. Tap a bill to mark it paid, edit or delete it.
@@ -29,9 +33,11 @@ class BillsScreen extends ConsumerWidget {
         title: const Text('Bills'),
         actions: [
           IconButton(
+            key: const Key('bills-reminder-settings'),
             tooltip: 'Reminder settings',
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.go('/more/settings'),
+            // Pushed over the tabs, so back returns to Bills.
+            onPressed: () => context.push(kBillsSettingsRoute),
           ),
         ],
       ),
@@ -55,9 +61,11 @@ class BillsScreen extends ConsumerWidget {
                     children: [
                       _Summary(bills: value),
                       if (profile != null && !profile.billRemindersEnabled)
-                        const _Note(
+                        _Note(
+                          key: const Key('bills-reminders-off'),
                           icon: Icons.notifications_off_outlined,
                           text: 'Bill reminders are switched off in Settings. Bills still show here.',
+                          onTap: () => context.push(kBillsSettingsRoute),
                         ),
                       for (final b in value) _BillRow(bill: b),
                     ],
@@ -440,20 +448,25 @@ class _MarkPaidSheetState extends ConsumerState<_MarkPaidSheet> {
 }
 
 class _Note extends StatelessWidget {
-  const _Note({required this.icon, required this.text});
+  const _Note({super.key, required this.icon, required this.text, this.onTap});
 
   final IconData icon;
   final String text;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-    child: Row(
-      children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
-      ],
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+          if (onTap != null) Icon(Icons.chevron_right, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ],
+      ),
     ),
   );
 }

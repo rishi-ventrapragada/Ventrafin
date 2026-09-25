@@ -51,22 +51,43 @@ class OfflineBanner extends ConsumerWidget {
   }
 }
 
-/// Full-area error state for screens whose data couldn't load.
+/// Error state for data that couldn't load: the plain message and a Retry
+/// button. Fills the screen, or with [compact] sits inside a card or section.
 class LoadError extends StatelessWidget {
-  const LoadError({super.key, required this.message, required this.onRetry});
+  const LoadError({super.key, required this.message, required this.onRetry, this.compact = false});
 
   final String message;
   final VoidCallback onRetry;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (compact) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off, size: 20, color: theme.colorScheme.error),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message, style: theme.textTheme.bodyMedium)),
+            const SizedBox(width: 4),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
+            Icon(Icons.cloud_off, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),

@@ -20,7 +20,7 @@ class LockScreen extends ConsumerStatefulWidget {
   ConsumerState<LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends ConsumerState<LockScreen> with WidgetsBindingObserver {
+class _LockScreenState extends ConsumerState<LockScreen> {
   String? _message;
   PatternPadState _padState = PatternPadState.idle;
   bool _busy = false;
@@ -31,23 +31,15 @@ class _LockScreenState extends ConsumerState<LockScreen> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _loadCooldown();
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoFingerprint());
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     super.dispose();
   }
-
-  /// Swallow the system back button while locked, so it can't pop the
-  /// screen underneath. (This observer is registered after the router's, so
-  /// it gets asked first.)
-  @override
-  Future<bool> didPopRoute() async => true;
 
   Future<void> _loadCooldown() async {
     final until = await ref.read(lockControllerProvider.notifier).cooldownUntil();

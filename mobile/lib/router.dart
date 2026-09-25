@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/theme.dart';
 import 'data/providers.dart';
+import 'features/accounts/accounts_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/bills/bill_form_screen.dart';
 import 'features/bills/bills_screen.dart';
@@ -23,6 +26,11 @@ final _rootKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 ///   /login, /setup-lock, /splash
 ///   /dashboard  /transactions (/transactions/:id)  /add  /bills (/bills/new, /bills/:id)
 ///   /more (/more/categories, /more/accounts, /more/reports, /more/settings)
+///
+/// Jumps from one section to another are pushed full-screen over the tabs,
+/// so back returns to where they started: /dashboard/reports,
+/// /bills/settings (the bell) and /more/settings/bills ("Your bills").
+/// Screens pushed over the tabs always use the root navigator.
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
@@ -45,13 +53,25 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/splash', builder: (_, _) => const Scaffold(body: Center(child: CircularProgressIndicator()))),
+      GoRoute(
+        path: '/splash',
+        builder: (_, _) => const AnnotatedRegion<SystemUiOverlayStyle>(
+          value: kDarkStatusBarIcons,
+          child: Scaffold(body: Center(child: CircularProgressIndicator())),
+        ),
+      ),
       GoRoute(path: '/setup-lock', builder: (_, _) => const SetupLockScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(navigationShell: shell),
         branches: [
           StatefulShellBranch(routes: [
-            GoRoute(path: '/dashboard', builder: (_, _) => const DashboardScreen()),
+            GoRoute(
+              path: '/dashboard',
+              builder: (_, _) => const DashboardScreen(),
+              routes: [
+                GoRoute(path: 'reports', parentNavigatorKey: _rootKey, builder: (_, _) => const ReportsScreen()),
+              ],
+            ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
@@ -75,6 +95,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, _) => const BillsScreen(),
               routes: [
                 GoRoute(path: 'new', parentNavigatorKey: _rootKey, builder: (_, _) => const BillFormScreen()),
+                GoRoute(path: 'settings', parentNavigatorKey: _rootKey, builder: (_, _) => const SettingsScreen()),
                 GoRoute(
                   path: ':id',
                   parentNavigatorKey: _rootKey,
@@ -95,6 +116,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   path: 'settings',
                   builder: (_, _) => const SettingsScreen(),
                   routes: [
+                    GoRoute(path: 'bills', parentNavigatorKey: _rootKey, builder: (_, _) => const BillsScreen()),
                     GoRoute(
                       path: 'change-pattern',
                       parentNavigatorKey: _rootKey,

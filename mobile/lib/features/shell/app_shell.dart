@@ -48,6 +48,21 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(realtimeSyncProvider);
     ref.watch(reminderSyncProvider);
 
+    // Android back: a screen pushed inside a tab pops first (go_router asks
+    // the tab's own navigator before this one). On any other tab's first
+    // screen, back returns to the Dashboard; on the Dashboard it leaves the
+    // app as usual.
+    final onDashboard = navigationShell.currentIndex == 0;
+    return PopScope(
+      canPop: onDashboard,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !onDashboard) navigationShell.goBranch(0);
+      },
+      child: _scaffold(navigationShell),
+    );
+  }
+
+  Widget _scaffold(StatefulNavigationShell navigationShell) {
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(

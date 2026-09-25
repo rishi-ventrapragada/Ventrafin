@@ -6,7 +6,9 @@ import 'package:uuid/uuid.dart';
 import '../../core/errors.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
+import '../../core/offline_banner.dart';
 import '../../core/theme.dart';
+import '../../core/unsaved_changes.dart';
 import '../../core/visual_badges.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
@@ -55,9 +57,10 @@ class EntryFormState extends ConsumerState<EntryForm> {
   /// Null = let the database auto-categorize.
   String? _categoryId;
 
-  /// Client-generated id for the next insert, so retrying a save after an
-  /// unclear failure can't create a duplicate. Renewed after each success.
-  late String _pendingId;
+  /// Add mode only: client-generated id for the next insert, so retrying a
+  /// save after an unclear failure can't create a duplicate. Renewed after
+  /// each success. (Edit mode updates the row by its own id.)
+  String? _insertId;
 
   bool _keypadVisible = true;
   bool _saving = false;
@@ -79,17 +82,24 @@ class EntryFormState extends ConsumerState<EntryForm> {
       _method = t.paymentMethod;
       _categoryId = t.categoryId;
       _keypadVisible = false;
-      _pendingId = t.id;
+      // Editing: typing in the description can make the form dirty.
+      _description.addListener(() => setState(() {}));
     } else {
       _type = TxnType.expense;
       _amount = const AmountInput();
       _date = indiaToday(ref.read(clockProvider));
       _accountId = prefs.lastAccountId;
       _method = prefs.lastPaymentMethod;
-      _pendingId = _uuid.v4();
+      _insertId = _uuid.v4();
     }
     _descriptionFocus.addListener(() {
       if (_descriptionFocus.hasFocus && _keypadVisible) setState(() => _keypadVisible = false);
+    });
+    // Keep the selected account valid once accounts load (or change live).
+    _reconcileAccounts(ref.read(accountsProvider).value ?? const <Account>[]);
+    ref.listenManual(accountsProvider, (_, next) {
+      final accounts = next.value;
+      if (accounts != null) setState(() => _reconcileAccounts(accounts));
     });
   }
 
@@ -103,14 +113,37 @@ class EntryFormState extends ConsumerState<EntryForm> {
 
   // ---------------------------------------------------------------- helpers
 
-  /// Keeps the selected account valid once accounts load (or change live).
-  void _reconcileAccounts(List<Account> accounts) {
+  /// What the account pickers offer: active accounts, plus (when editing)
+  /// the row's own accounts even if archived since.
+  List<Account> _pickable(List<Account> accounts) =>
+      pickableAccounts(accounts, keepIds: [widget.initial?.accountId, widget.initial?.toAccountId]);
+
+  /// Keeps the selected accounts pickable. A remembered last account that
+  /// has been archived falls back to the Cash account, else the first one.
+  void _reconcileAccounts(List<Account> all) {
+    final accounts = _pickable(all);
     if (accounts.isEmpty) return;
     final ids = accounts.map((a) => a.id).toSet();
     if (_accountId == null || !ids.contains(_accountId)) {
-      _accountId = (accounts.where((a) => a.type == AccountType.cash).firstOrNull ?? accounts.first).id;
+      final active = accounts.where((a) => !a.archived);
+      final fallback = active.where((a) => a.type == AccountType.cash).firstOrNull ?? active.firstOrNull;
+      _accountId = (fallback ?? accounts.first).id;
     }
     if (_toAccountId != null && !ids.contains(_toAccountId)) _toAccountId = null;
+  }
+
+  /// Edit mode: something differs from the row as it was loaded.
+  bool get _dirty {
+    final t = widget.initial;
+    if (t == null) return false;
+    return _type != t.type ||
+        _amount.paise != t.amountPaise ||
+        _date != t.date ||
+        _description.text.trim() != t.description.trim() ||
+        _accountId != t.accountId ||
+        (_type == TxnType.transfer && _toAccountId != t.toAccountId) ||
+        _method != t.paymentMethod ||
+        (_type != TxnType.transfer && _categoryId != t.categoryId);
   }
 
   String? get _amountError => _submitted && _amount.paise <= 0 ? 'Enter an amount' : null;
@@ -167,7 +200,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
     try {
       saved = widget.isEdit
           ? await repo.updateTransaction(widget.initial!.id, draft)
-          : await repo.insertTransaction(_pendingId, draft);
+          : await repo.insertTransaction(_insertId!, draft);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -201,7 +234,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
       _description.clear();
       _categoryId = null;
       _submitted = false;
-      _pendingId = _uuid.v4();
+      _insertId = _uuid.v4();
       _keypadVisible = true;
     });
     // Confirmation is the 'Just saved' panel at the top. A SnackBar here
@@ -266,14 +299,16 @@ class EntryFormState extends ConsumerState<EntryForm> {
     final accountsAsync = ref.watch(accountsProvider);
     final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
     final accounts = accountsAsync.value ?? const <Account>[];
-    _reconcileAccounts(accounts);
 
     if (accountsAsync.hasError && accounts.isEmpty) {
-      return _AccountsError(onRetry: () => ref.invalidate(accountsProvider));
+      return LoadError(
+        message: "Couldn't load your accounts. ${describeError(accountsAsync.error!)}",
+        onRetry: () => ref.invalidate(accountsProvider),
+      );
     }
 
     final theme = Theme.of(context);
-    return Column(
+    final form = Column(
       children: [
         Expanded(
           child: ListView(
@@ -300,7 +335,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
                 ),
               ),
               const SizedBox(height: 10),
-              _accountRow(accounts),
+              _accountRow(_pickable(accounts)),
               const SizedBox(height: 8),
               _methodRow(theme),
               const SizedBox(height: 8),
@@ -318,6 +353,9 @@ class EntryFormState extends ConsumerState<EntryForm> {
           AmountKeypad(onKey: _onKey, onDone: _keypadDone, doneLabel: 'Next'),
       ],
     );
+    // Editing: leaving with unsaved changes asks first. (Add keeps its
+    // entry when switching tabs, so there is nothing to lose there.)
+    return widget.isEdit ? UnsavedChangesScope(dirty: _dirty, child: form) : form;
   }
 
   Widget _typeSelector() => SegmentedButton<TxnType>(
@@ -375,16 +413,21 @@ class EntryFormState extends ConsumerState<EntryForm> {
           child: Row(children: [
             Icon(a.type.icon, size: 18, color: a.type.color),
             const SizedBox(width: 8),
-            Flexible(child: Text(a.name, overflow: TextOverflow.ellipsis)),
+            Flexible(child: Text(accountPickerLabel(a), overflow: TextOverflow.ellipsis)),
           ]),
         );
-    final from = DropdownButtonFormField<String>(
-      key: const Key('entry-account'),
-      initialValue: _accountId,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: _type == TxnType.transfer ? 'From account' : 'Account'),
-      items: [for (final a in accounts) item(a)],
-      onChanged: (v) => setState(() => _accountId = v),
+    // Keyed on the value: the field only reads initialValue once, and the
+    // account can be filled in after it first shows (accounts still loading).
+    final from = KeyedSubtree(
+      key: ValueKey('entry-account-$_accountId'),
+      child: DropdownButtonFormField<String>(
+        key: const Key('entry-account'),
+        initialValue: _accountId,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: _type == TxnType.transfer ? 'From account' : 'Account'),
+        items: [for (final a in accounts) item(a)],
+        onChanged: (v) => setState(() => _accountId = v),
+      ),
     );
     if (_type != TxnType.transfer) return from;
     return Row(
@@ -393,13 +436,16 @@ class EntryFormState extends ConsumerState<EntryForm> {
         Expanded(child: from),
         const Padding(padding: EdgeInsets.only(top: 12, left: 4, right: 4), child: Icon(Icons.arrow_forward, size: 18)),
         Expanded(
-          child: DropdownButtonFormField<String>(
-            key: const Key('entry-to-account'),
-            initialValue: _toAccountId,
-            isExpanded: true,
-            decoration: InputDecoration(labelText: 'To account', errorText: _toAccountError),
-            items: [for (final a in accounts) item(a)],
-            onChanged: (v) => setState(() => _toAccountId = v),
+          child: KeyedSubtree(
+            key: ValueKey('entry-to-account-$_toAccountId'),
+            child: DropdownButtonFormField<String>(
+              key: const Key('entry-to-account'),
+              initialValue: _toAccountId,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: 'To account', errorText: _toAccountError),
+              items: [for (final a in accounts) item(a)],
+              onChanged: (v) => setState(() => _toAccountId = v),
+            ),
           ),
         ),
       ],
@@ -494,7 +540,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              selected?.name ?? 'Auto',
+              selected == null ? 'Auto' : '${selected.name}${selected.archived ? ' (archived)' : ''}',
               key: const Key('entry-category-text'),
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyLarge,
@@ -628,28 +674,6 @@ class _JustSaved extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AccountsError extends StatelessWidget {
-  const _AccountsError({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.cloud_off, size: 48),
-          const SizedBox(height: 8),
-          const Text("Couldn't load your accounts. Check your internet connection."),
-          const SizedBox(height: 8),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ]),
       ),
     );
   }

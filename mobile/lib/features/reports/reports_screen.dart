@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/errors.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
+import '../../core/offline_banner.dart';
 import '../../core/month_bar.dart';
 import '../../core/theme.dart';
 import '../../core/visual_badges.dart';
@@ -65,7 +66,11 @@ class ReportsScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.read(revisionsProvider.notifier).bumpAll();
-          await ref.read(monthlyTotalsProvider(range).future);
+          try {
+            await ref.read(monthlyTotalsProvider(range).future);
+          } catch (_) {
+            // Each section shows its own error, with Retry.
+          }
         },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
@@ -117,8 +122,10 @@ class _Section extends StatelessWidget {
 
 Widget _loading() => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()));
 
-Widget _failed(BuildContext context, Object error) =>
-    Text("Couldn't load this. ${describeError(error)}", style: TextStyle(color: Theme.of(context).colorScheme.error));
+/// A section that couldn't load: the reason and Retry (the rest of the
+/// screen stays usable).
+Widget _failed(Object error, VoidCallback onRetry) =>
+    LoadError(compact: true, message: describeError(error), onRetry: onRetry);
 
 TextStyle? _head(BuildContext context) =>
     Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
@@ -181,6 +188,7 @@ class _MonthSummaryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final async = ref.watch(monthTotalsProvider(month));
+    void retry() => ref.invalidate(monthTotalsProvider(month));
     final counts = ref.watch(monthlyTotalsProvider(range)).value?.where((m) => m.month == month).firstOrNull;
     final t = async.value;
     final body = theme.textTheme.bodyMedium;
@@ -200,7 +208,7 @@ class _MonthSummaryCard extends ConsumerWidget {
 
     final Widget content;
     if (t == null) {
-      content = async.hasError ? _failed(context, async.error!) : _loading();
+      content = async.hasError ? _failed(async.error!, retry) : _loading();
     } else {
       final lastNet = t.lastIncomePaise - t.lastExpensePaise;
       int? saved(int income, int net) => income > 0 ? (net * 100 / income).round() : null;
@@ -268,6 +276,7 @@ class _CategoryMonthCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final async = ref.watch(monthComparisonProvider(month));
+    void retry() => ref.invalidate(monthComparisonProvider(month));
     final categories = {for (final c in ref.watch(categoriesProvider).value ?? const <Category>[]) c.id: c};
     final counts = <String, int>{
       for (final r in ref.watch(monthlyCategoryTotalsProvider(range)).value ?? const <MonthlyCategoryTotal>[])
@@ -290,7 +299,7 @@ class _CategoryMonthCard extends ConsumerWidget {
     final small = theme.textTheme.bodySmall;
     final Widget content;
     if (!async.hasValue) {
-      content = async.hasError ? _failed(context, async.error!) : _loading();
+      content = async.hasError ? _failed(async.error!, retry) : _loading();
     } else if (rows.isEmpty) {
       content = Text('Nothing spent in ${month.label}.', style: theme.textTheme.bodyMedium);
     } else {
@@ -561,11 +570,12 @@ class _IncomeVsSpendingCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final async = ref.watch(monthlyTotalsProvider(range));
+    void retry() => ref.invalidate(monthlyTotalsProvider(range));
     final data = async.value;
 
     final Widget content;
     if (data == null) {
-      content = async.hasError ? _failed(context, async.error!) : _loading();
+      content = async.hasError ? _failed(async.error!, retry) : _loading();
     } else {
       final byMonth = {for (final m in data) m.month: m};
       final rows = [
@@ -698,12 +708,13 @@ class _CategoryTrendCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final async = ref.watch(monthlyCategoryTotalsProvider(range));
+    void retry() => ref.invalidate(monthlyCategoryTotalsProvider(range));
     final categories = {for (final c in ref.watch(categoriesProvider).value ?? const <Category>[]) c.id: c};
     final data = async.value;
 
     final Widget content;
     if (data == null) {
-      content = async.hasError ? _failed(context, async.error!) : _loading();
+      content = async.hasError ? _failed(async.error!, retry) : _loading();
     } else {
       final trend = buildCategoryTrend(data, months, categories);
       if (trend.rows.isEmpty) {

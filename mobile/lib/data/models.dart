@@ -45,18 +45,56 @@ enum AccountType {
 
 @immutable
 class Account {
-  const Account({required this.id, required this.name, required this.type});
+  const Account({required this.id, required this.name, required this.type, this.archived = false});
 
   factory Account.fromRow(Map<String, dynamic> r) => Account(
         id: r['id'] as String,
         name: r['name'] as String,
         type: AccountType.fromDb(r['type'] as String),
+        // Absent before the audit-round-1 migration: every account is active.
+        archived: r['archived'] as bool? ?? false,
       );
 
   final String id;
   final String name;
   final AccountType type;
+
+  /// Hidden from the pickers for new entries; old transactions and bills
+  /// keep it. At least one account always stays active (database trigger).
+  final bool archived;
 }
+
+/// Longest account name the database accepts (`accounts_name_check`).
+const int kAccountNameMaxLength = 60;
+
+/// Why [name] can't be used for an account, or null if it can. Mirrors the
+/// database's rules so the form can say so before saving: 1–60 characters
+/// and unique ignoring case and surrounding spaces (archived accounts count
+/// too). The database still enforces both.
+String? accountNameError(String name, {required Iterable<Account> existing, String? exceptId}) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return 'Enter a name';
+  if (trimmed.runes.length > kAccountNameMaxLength) {
+    return 'Keep it to $kAccountNameMaxLength characters or fewer';
+  }
+  final lower = trimmed.toLowerCase();
+  final clash = existing.where((a) => a.id != exceptId && a.name.trim().toLowerCase() == lower).firstOrNull;
+  if (clash != null) {
+    return 'You already have an account called "${clash.name}"${clash.archived ? ' (archived)' : ''}';
+  }
+  return null;
+}
+
+/// The accounts a picker for new data offers: active ones, plus any
+/// archived ones in [keepIds] (the current value of an existing row, which
+/// stays selectable). Order is kept.
+List<Account> pickableAccounts(Iterable<Account> accounts, {Iterable<String?> keepIds = const []}) {
+  final keep = keepIds.whereType<String>().toSet();
+  return [for (final a in accounts) if (!a.archived || keep.contains(a.id)) a];
+}
+
+/// An account's name as a picker shows it: "HDFC (archived)" when archived.
+String accountPickerLabel(Account a) => a.archived ? '${a.name} (archived)' : a.name;
 
 @immutable
 class Category {

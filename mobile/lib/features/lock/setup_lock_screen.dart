@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme.dart';
+import '../../core/unsaved_changes.dart';
 import '../../data/providers.dart';
 import 'lock_controller.dart';
 import 'pattern_hasher.dart';
@@ -144,72 +147,82 @@ class _SetupLockScreenState extends ConsumerState<SetupLockScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final email = ref.watch(currentUserProvider)?.email;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.requireCurrent ? 'Change pattern' : 'Secure Ventrafin'),
-        automaticallyImplyLeading: widget.requireCurrent,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              if (!widget.requireCurrent) ...[
-                Text(
-                  'The pattern (and fingerprint, if you like) opens the app on this phone. '
-                  'It is stored only as a one-way hash, never the pattern itself.',
-                  style: theme.textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                if (email != null) ...[
-                  const SizedBox(height: 4),
-                  Text('Signed in as $email', style: theme.textTheme.bodySmall),
-                ],
-                const SizedBox(height: 16),
-              ],
-              Text(_title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 40,
-                child: Text(
-                  _message ?? (_step == _Step.fingerprint ? '' : 'Connect at least $kMinPatternDots dots'),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: _padState == PatternPadState.error ? theme.colorScheme.error : null,
+    // Dark status-bar icons wherever the page shows through; under the app
+    // bar, the AppBar's own style (to suit the brand colour) wins.
+    // Changing the pattern: once a new one has been drawn, leaving asks
+    // first. (First-run setup has no way back to leave by.)
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: kDarkStatusBarIcons,
+      child: UnsavedChangesScope(
+        dirty: widget.requireCurrent && _first != null && !_busy,
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(widget.requireCurrent ? 'Change pattern' : 'Secure Ventrafin'),
+            automaticallyImplyLeading: widget.requireCurrent,
+          ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  if (!widget.requireCurrent) ...[
+                    Text(
+                      'The pattern (and fingerprint, if you like) opens the app on this phone. '
+                      'It is stored only as a one-way hash, never the pattern itself.',
+                      style: theme.textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (email != null) ...[
+                      const SizedBox(height: 4),
+                      Text('Signed in as $email', style: theme.textTheme.bodySmall),
+                    ],
+                    const SizedBox(height: 16),
+                  ],
+                  Text(_title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 40,
+                    child: Text(
+                      _message ?? (_step == _Step.fingerprint ? '' : 'Connect at least $kMinPatternDots dots'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: _padState == PatternPadState.error ? theme.colorScheme.error : null,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
+                  if (_step == _Step.fingerprint && !_needCurrent) ...[
+                    const Icon(Icons.fingerprint, size: 96),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unlock with your fingerprint, and use the pattern as a backup.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _enableFingerprint,
+                      icon: const Icon(Icons.fingerprint),
+                      label: const Text('Use fingerprint'),
+                    ),
+                    TextButton(
+                      onPressed: _busy ? null : () => _save(enableBiometric: false),
+                      child: const Text('Not now, pattern only'),
+                    ),
+                  ] else
+                    PatternPad(onComplete: _onPattern, state: _padState, enabled: !_busy),
+                  if (_busy) const Padding(padding: EdgeInsets.only(top: 16), child: LinearProgressIndicator()),
+                  if (_step == _Step.confirm && !_needCurrent)
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _step = _Step.draw;
+                        _first = null;
+                        _message = null;
+                        _padState = PatternPadState.idle;
+                      }),
+                      child: const Text('Start over'),
+                    ),
+                ],
               ),
-              if (_step == _Step.fingerprint && !_needCurrent) ...[
-                const Icon(Icons.fingerprint, size: 96),
-                const SizedBox(height: 16),
-                const Text(
-                  'Unlock with your fingerprint, and use the pattern as a backup.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _enableFingerprint,
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text('Use fingerprint'),
-                ),
-                TextButton(
-                  onPressed: _busy ? null : () => _save(enableBiometric: false),
-                  child: const Text('Not now, pattern only'),
-                ),
-              ] else
-                PatternPad(onComplete: _onPattern, state: _padState, enabled: !_busy),
-              if (_busy) const Padding(padding: EdgeInsets.only(top: 16), child: LinearProgressIndicator()),
-              if (_step == _Step.confirm && !_needCurrent)
-                TextButton(
-                  onPressed: () => setState(() {
-                    _step = _Step.draw;
-                    _first = null;
-                    _message = null;
-                    _padState = PatternPadState.idle;
-                  }),
-                  child: const Text('Start over'),
-                ),
-            ],
+            ),
           ),
         ),
       ),

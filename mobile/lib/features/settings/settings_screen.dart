@@ -248,7 +248,8 @@ class RemindersSection extends ConsumerWidget {
                 : '${bills.length} ${bills.length == 1 ? 'bill' : 'bills'}, $withReminder with reminders on',
           ),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.go('/bills'),
+          // Pushed over the tabs, so back returns to Settings.
+          onTap: () => context.push('/more/settings/bills'),
         ),
         if (anyOn && permissions != null && permissions.notificationsAllowed && !permissions.exactAlarmsAllowed)
           _PermissionBanner(

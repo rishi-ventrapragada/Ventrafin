@@ -20,6 +20,9 @@ const List<String> kRealtimeTables = [
 /// spinning forever, which would count as failing silently.
 const Duration kRequestTimeout = Duration(seconds: 15);
 
+/// Rows per request when fetching many transactions (Supabase's max rows).
+const int kTxnPageSize = 1000;
+
 class SupabaseFinanceRepository implements FinanceRepository {
   SupabaseFinanceRepository(this._client);
 
@@ -50,6 +53,25 @@ class SupabaseFinanceRepository implements FinanceRepository {
             .order('created_at', ascending: false);
         return rows.map(Txn.fromRow).toList();
       });
+
+  @override
+  Future<List<Txn>> fetchTransactionsBetween(DateTime from, DateTime to) async {
+    final all = <Txn>[];
+    for (var offset = 0; ; offset += kTxnPageSize) {
+      final rows = await _run(() => _client
+          .from('transactions')
+          .select()
+          .gte('date', toIsoDate(from))
+          .lte('date', toIsoDate(to))
+          .order('date', ascending: false)
+          .order('created_at', ascending: false)
+          // A unique last key keeps the pages from overlapping or skipping.
+          .order('id')
+          .range(offset, offset + kTxnPageSize - 1));
+      all.addAll(rows.map(Txn.fromRow));
+      if (rows.length < kTxnPageSize) return all;
+    }
+  }
 
   @override
   Future<Txn?> fetchTransaction(String id) => _run(() async {
@@ -85,6 +107,54 @@ class SupabaseFinanceRepository implements FinanceRepository {
             .select()
             .single();
         return Category.fromRow(row);
+      });
+
+  @override
+  Future<Category> insertCategory({required String name, required TxnType kind}) => _run(() async {
+        final row =
+            await _client.from('categories').insert({'name': name.trim(), 'kind': kind.db}).select().single();
+        return Category.fromRow(row);
+      });
+
+  @override
+  Future<void> setCategoryArchived(String id, bool archived) => _run(() async {
+        await _client.from('categories').update({'archived': archived}).eq('id', id).select('id').single();
+      });
+
+  @override
+  Future<Account> insertAccount(String id, {required String name, required AccountType type}) async {
+    try {
+      return await _run(() async {
+        final row = await _client
+            .from('accounts')
+            .insert({'id': id, 'name': name.trim(), 'type': type.db})
+            .select()
+            .single();
+        return Account.fromRow(row);
+      });
+    } on PostgrestException catch (e) {
+      // An earlier attempt with this id already went through.
+      if (e.code == '23505' && e.message.contains('pkey')) {
+        final row = await _run(() => _client.from('accounts').select().eq('id', id).maybeSingle());
+        if (row != null) return Account.fromRow(row);
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> updateAccount(String id, {required String name, required AccountType type}) => _run(() async {
+        await _client
+            .from('accounts')
+            .update({'name': name.trim(), 'type': type.db})
+            .eq('id', id)
+            .select('id')
+            .single();
+      });
+
+  @override
+  Future<void> setAccountArchived(String id, bool archived) => _run(() async {
+        await _client.from('accounts').update({'archived': archived}).eq('id', id).select('id').single();
       });
 
   @override

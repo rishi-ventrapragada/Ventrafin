@@ -14,52 +14,231 @@ import '../../core/visual_badges.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import '../entry/edit_transaction_screen.dart';
+import 'txn_filter.dart';
 
-/// Dense, date-grouped list for one month. Updates live via Realtime.
-class TransactionsScreen extends ConsumerWidget {
+/// Dense, date-grouped list for one month, or (while searching) for every
+/// month. Filters narrow it to a type and/or a category, Uncategorized
+/// included. Updates live via Realtime.
+class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransactionsScreen> createState() => _TransactionsScreenState();
+}
+
+class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
+  late final TextEditingController _searchText;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchText = TextEditingController(text: ref.read(txnSearchProvider) ?? '');
+  }
+
+  @override
+  void dispose() {
+    _searchText.dispose();
+    super.dispose();
+  }
+
+  void _closeSearch() {
+    _searchText.clear();
+    ref.read(txnSearchProvider.notifier).close();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Closed from elsewhere (the Dashboard's Uncategorized card): empty the box.
+    ref.listen(txnSearchProvider, (_, next) {
+      if (next == null && _searchText.text.isNotEmpty) _searchText.clear();
+    });
+    final search = ref.watch(txnSearchProvider);
+    final searchOpen = search != null;
+    final query = search?.trim() ?? '';
+    final filter = ref.watch(txnFilterProvider);
     final month = ref.watch(selectedMonthProvider);
-    final txnsAsync = ref.watch(monthTransactionsProvider(month));
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
+    final accountsById = {for (final a in accounts) a.id: a};
+    final categoriesById = {for (final c in categories) c.id: c};
     final thisMonth = YearMonth.of(indiaToday(ref.watch(clockProvider)));
+    final theme = Theme.of(context);
+    final fg = theme.appBarTheme.foregroundColor ?? theme.colorScheme.onPrimary;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transactions'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(44),
-          child: MonthBar(
-            month: month,
-            canGoForward: month.compareTo(thisMonth) < 0,
-            onChanged: ref.read(selectedMonthProvider.notifier).set,
+    // A search looks through every month; otherwise the chosen month.
+    final Widget list;
+    Widget? status;
+    if (query.isNotEmpty) {
+      final allAsync = ref.watch(allTransactionsProvider);
+      final matches = allAsync.value
+          ?.where((t) =>
+              filter.matches(t) && txnMatchesSearch(t, query, accounts: accountsById, categories: categoriesById))
+          .toList();
+      status = _StatusLine(
+        key: const Key('search-status'),
+        text: matches == null
+            ? 'Searching all months…'
+            : '${matches.length} ${matches.length == 1 ? 'match' : 'matches'} in all months',
+      );
+      list = switch (allAsync) {
+        AsyncValue(hasValue: true) when matches!.isEmpty => _NoMatches(
+            text: filter.isActive ? 'Nothing matches "$query" with these filters.' : 'Nothing matches "$query".',
+            onClear: filter.isActive ? ref.read(txnFilterProvider.notifier).clear : null,
           ),
+        AsyncValue(hasValue: true) => RefreshIndicator(
+            onRefresh: () async {
+              ref.read(revisionsProvider.notifier).bumpAll();
+              await ref.read(allTransactionsProvider.future);
+            },
+            child: _GroupedList(txns: matches!, accounts: accountsById, categories: categoriesById),
+          ),
+        AsyncValue(:final error?) => LoadError(
+            message: describeError(error),
+            onRetry: () => ref.invalidate(allTransactionsProvider),
+          ),
+        _ => const Center(child: CircularProgressIndicator()),
+      };
+    } else {
+      final txnsAsync = ref.watch(monthTransactionsProvider(month));
+      final shown = txnsAsync.value?.where(filter.matches).toList();
+      list = switch (txnsAsync) {
+        AsyncValue(:final value?) when value.isEmpty => _Empty(month: month),
+        AsyncValue(hasValue: true) when shown!.isEmpty => _NoMatches(
+            text: 'No transactions in ${month.label} match these filters.',
+            onClear: ref.read(txnFilterProvider.notifier).clear,
+          ),
+        AsyncValue(hasValue: true) => RefreshIndicator(
+            onRefresh: () async {
+              ref.read(revisionsProvider.notifier).bumpAll();
+              await ref.read(monthTransactionsProvider(month).future);
+            },
+            child: _GroupedList(txns: shown!, accounts: accountsById, categories: categoriesById),
+          ),
+        AsyncValue(:final error?) => LoadError(
+            message: describeError(error),
+            onRetry: () => ref.invalidate(monthTransactionsProvider(month)),
+          ),
+        _ => const Center(child: CircularProgressIndicator()),
+      };
+    }
+
+    // Back closes the search first (and then, from the tab's first screen,
+    // goes to the Dashboard).
+    return PopScope(
+      canPop: !searchOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeSearch();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: searchOpen
+              ? TextField(
+                  key: const Key('txn-search'),
+                  controller: _searchText,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  cursorColor: fg,
+                  style: theme.textTheme.titleMedium?.copyWith(color: fg),
+                  decoration: InputDecoration(
+                    hintText: 'Search all months',
+                    hintStyle: theme.textTheme.titleMedium?.copyWith(color: fg.withValues(alpha: 0.75)),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: ref.read(txnSearchProvider.notifier).setText,
+                )
+              : const Text('Transactions'),
+          actions: [
+            if (searchOpen)
+              IconButton(
+                key: const Key('txn-search-close'),
+                tooltip: 'Close search',
+                icon: const Icon(Icons.close),
+                onPressed: _closeSearch,
+              )
+            else
+              IconButton(
+                key: const Key('txn-search-open'),
+                tooltip: 'Search all months',
+                icon: const Icon(Icons.search),
+                onPressed: ref.read(txnSearchProvider.notifier).open,
+              ),
+            _FilterMenu(filter: filter, categories: categories, color: fg),
+          ],
+          bottom: query.isNotEmpty
+              ? null
+              : PreferredSize(
+                  preferredSize: const Size.fromHeight(44),
+                  child: MonthBar(
+                    month: month,
+                    canGoForward: month.compareTo(thisMonth) < 0,
+                    onChanged: ref.read(selectedMonthProvider.notifier).set,
+                  ),
+                ),
+        ),
+        body: Column(
+          children: [
+            if (query.isEmpty)
+              _MonthSummary(
+                month: month,
+                onUncategorized: () => ref.read(txnFilterProvider.notifier).set(const TxnFilter.uncategorized()),
+              ),
+            ?status,
+            if (filter.isActive) _ActiveFilters(filter: filter, categories: categories),
+            const Divider(height: 1),
+            Expanded(child: list),
+          ],
         ),
       ),
-      body: Column(
+    );
+  }
+}
+
+/// Month headline from Postgres (`get_month_totals`), not summed on the phone.
+/// Tapping a non-zero Uncategorized count shows just those entries.
+class _MonthSummary extends ConsumerWidget {
+  const _MonthSummary({required this.month, required this.onUncategorized});
+
+  final YearMonth month;
+  final VoidCallback onUncategorized;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final totals = ref.watch(monthTotalsProvider(month)).value;
+    final style = Theme.of(context).textTheme.bodySmall;
+    Widget cell(String label, String value, {Color? color}) => Column(children: [
+          Text(label, style: style),
+          Text(value, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color)),
+        ]);
+    final uncategorized = totals?.uncategorizedCount ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
         children: [
-          _MonthSummary(month: month),
-          const Divider(height: 1),
           Expanded(
-            child: switch (txnsAsync) {
-              AsyncValue(:final value?) => value.isEmpty
-                  ? _Empty(month: month)
-                  : RefreshIndicator(
-                      onRefresh: () async {
-                        ref.read(revisionsProvider.notifier).bumpAll();
-                        await ref.read(monthTransactionsProvider(month).future);
-                      },
-                      child: _GroupedList(txns: value, accounts: accounts, categories: categories),
+            child: cell('Spent', totals == null ? '…' : formatRupeesCompact(totals.expensePaise),
+                color: kExpenseColor),
+          ),
+          Expanded(
+            child: cell('Income', totals == null ? '…' : formatRupeesCompact(totals.incomePaise),
+                color: kIncomeColor),
+          ),
+          Expanded(child: cell('Net', totals == null ? '…' : formatRupeesCompact(totals.netPaise))),
+          Expanded(
+            child: uncategorized > 0
+                ? Tooltip(
+                    message: 'Show only the uncategorized ones',
+                    child: InkWell(
+                      key: const Key('summary-uncategorized'),
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: onUncategorized,
+                      child: cell('Uncategorized', '$uncategorized', color: kUncategorizedInkColor),
                     ),
-              AsyncValue(:final error?) => LoadError(
-                  message: describeError(error),
-                  onRetry: () => ref.invalidate(monthTransactionsProvider(month)),
-                ),
-              _ => const Center(child: CircularProgressIndicator()),
-            },
+                  )
+                : cell('Uncategorized', totals == null ? '…' : '0'),
           ),
         ],
       ),
@@ -67,35 +246,186 @@ class TransactionsScreen extends ConsumerWidget {
   }
 }
 
-/// Month headline from Postgres (`get_month_totals`), not summed on the phone.
-class _MonthSummary extends ConsumerWidget {
-  const _MonthSummary({required this.month});
+/// One line under the app bar, e.g. "12 matches in all months".
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({super.key, required this.text});
 
-  final YearMonth month;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge),
+    );
+  }
+}
+
+/// The app bar's filter button: one menu with the type (All / Expenses /
+/// Income / Transfers) and the category (Uncategorized and every category
+/// of the chosen type, archived ones last since only older entries use them).
+class _FilterMenu extends ConsumerWidget {
+  const _FilterMenu({required this.filter, required this.categories, required this.color});
+
+  final TxnFilter filter;
+  final List<Category> categories;
+  final Color color;
+
+  static const _types = <(TxnType?, String)>[
+    (null, 'All types'),
+    (TxnType.expense, 'Expenses'),
+    (TxnType.income, 'Income'),
+    (TxnType.transfer, 'Transfers'),
+  ];
+
+  // Menu values: 'type:<db|all>' or 'category:<id|all|uncategorized>'.
+  void _apply(WidgetRef ref, String value) {
+    final notifier = ref.read(txnFilterProvider.notifier);
+    final (kind, arg) = (value.split(':').first, value.split(':').last);
+    if (kind == 'type') {
+      final type = arg == 'all' ? null : TxnType.fromDb(arg);
+      // Transfers have no category, so picking them drops the category.
+      notifier.set(type == TxnType.transfer ? const TxnFilter(type: TxnType.transfer) : filter.withType(type));
+      return;
+    }
+    // A category means expenses or income, so it replaces Transfers.
+    final base = filter.type == TxnType.transfer ? const TxnFilter() : filter;
+    notifier.set(switch (arg) {
+      'all' => base.withCategory(),
+      'uncategorized' => base.withCategory(uncategorized: true),
+      _ => base.withCategory(categoryId: arg),
+    });
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final totals = ref.watch(monthTotalsProvider(month)).value;
-    final style = Theme.of(context).textTheme.bodySmall;
-    Widget cell(String label, String value, {Color? color}) => Expanded(
-          child: Column(children: [
-            Text(label, style: style),
-            Text(value, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color)),
-          ]),
+    final theme = Theme.of(context);
+    final kinds = switch (filter.type) {
+      TxnType.expense => [TxnType.expense],
+      TxnType.income => [TxnType.income],
+      _ => [TxnType.expense, TxnType.income],
+    };
+    List<Category> of(TxnType kind) => categories.where((c) => c.kind == kind).toList()
+      ..sort((a, b) {
+        if (a.archived != b.archived) return a.archived ? 1 : -1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    PopupMenuEntry<String> heading(String text) => PopupMenuItem<String>(
+          enabled: false,
+          height: 28,
+          child: Text(text, style: theme.textTheme.labelMedium),
         );
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    PopupMenuEntry<String> item(String value, bool checked, Widget leading, String text) => CheckedPopupMenuItem(
+          key: Key('filter-$value'.replaceFirst(':', '-')),
+          value: value,
+          checked: checked,
+          height: 40,
+          child: Row(children: [leading, const SizedBox(width: 10), Flexible(child: Text(text))]),
+        );
+
+    return PopupMenuButton<String>(
+      key: const Key('txn-filter'),
+      tooltip: 'Filter by type or category',
+      icon: Badge(
+        isLabelVisible: filter.isActive,
+        smallSize: 8,
+        child: Icon(filter.isActive ? Icons.filter_alt : Icons.filter_alt_outlined, color: color),
+      ),
+      onSelected: (v) => _apply(ref, v),
+      itemBuilder: (context) => [
+        heading('Type'),
+        for (final (type, label) in _types)
+          item('type:${type?.db ?? 'all'}', filter.type == type,
+              Icon(type?.icon ?? Icons.all_inclusive, size: 20), label),
+        const PopupMenuDivider(),
+        heading('Category'),
+        item('category:all', !filter.hasCategory, const Icon(Icons.all_inclusive, size: 20), 'All categories'),
+        item('category:uncategorized', filter.uncategorized, const UncategorizedAvatar(size: 22), 'Uncategorized'),
+        for (final kind in kinds) ...[
+          heading('${kind.label} categories'),
+          for (final c in of(kind))
+            item('category:${c.id}', filter.categoryId == c.id, CategoryAvatar(category: c, size: 22),
+                c.archived ? '${c.name} (archived)' : c.name),
+        ],
+      ],
+    );
+  }
+}
+
+/// What the list is narrowed to, e.g. "Expenses · Uncategorized", with
+/// Clear. Only shown while a filter is on, so the plain list stays as dense.
+class _ActiveFilters extends ConsumerWidget {
+  const _ActiveFilters({required this.filter, required this.categories});
+
+  final TxnFilter filter;
+  final List<Category> categories;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final category = categories.where((c) => c.id == filter.categoryId).firstOrNull;
+    final parts = [
+      if (filter.type != null)
+        switch (filter.type!) {
+          TxnType.expense => 'Expenses',
+          TxnType.income => 'Income',
+          TxnType.transfer => 'Transfers',
+        },
+      if (filter.uncategorized) 'Uncategorized',
+      if (category != null) category.archived ? '${category.name} (archived)' : category.name,
+    ];
+    return Container(
+      color: theme.colorScheme.secondaryContainer,
+      padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
       child: Row(
         children: [
-          cell('Spent', totals == null ? '…' : formatRupeesCompact(totals.expensePaise), color: kExpenseColor),
-          cell('Income', totals == null ? '…' : formatRupeesCompact(totals.incomePaise), color: kIncomeColor),
-          cell('Net', totals == null ? '…' : formatRupeesCompact(totals.netPaise)),
-          cell(
-            'Uncategorized',
-            totals == null ? '…' : '${totals.uncategorizedCount}',
-            color: (totals?.uncategorizedCount ?? 0) > 0 ? kUncategorizedColor : null,
+          Icon(Icons.filter_alt, size: 16, color: theme.colorScheme.onSecondaryContainer),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Showing only: ${parts.join(' · ')}',
+              key: const Key('active-filters'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSecondaryContainer),
+            ),
+          ),
+          TextButton(
+            key: const Key('filter-clear'),
+            onPressed: ref.read(txnFilterProvider.notifier).clear,
+            child: const Text('Clear'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A month, or a search, with entries but none that pass the filters.
+class _NoMatches extends StatelessWidget {
+  const _NoMatches({required this.text, required this.onClear});
+
+  final String text;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.filter_list_off, size: 40),
+            const SizedBox(height: 8),
+            Text(text, textAlign: TextAlign.center),
+            if (onClear != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(onPressed: onClear, child: const Text('Clear filters')),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -105,8 +435,8 @@ class _GroupedList extends ConsumerWidget {
   const _GroupedList({required this.txns, required this.accounts, required this.categories});
 
   final List<Txn> txns;
-  final List<Account> accounts;
-  final List<Category> categories;
+  final Map<String, Account> accounts;
+  final Map<String, Category> categories;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -114,8 +444,6 @@ class _GroupedList extends ConsumerWidget {
     final byDay = groupBy(txns.where((t) => !hidden.contains(t.id)), (Txn t) => t.date);
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
     final clock = ref.read(clockProvider);
-    final accountsById = {for (final a in accounts) a.id: a};
-    final categoriesById = {for (final c in categories) c.id: c};
 
     final children = <Widget>[];
     for (final day in days) {
@@ -123,7 +451,7 @@ class _GroupedList extends ConsumerWidget {
       final spent = items.where((t) => t.type == TxnType.expense).fold<int>(0, (s, t) => s + t.amountPaise);
       children.add(_DayHeader(label: friendlyDate(day, clock: clock), spentPaise: spent, count: items.length));
       for (final t in items) {
-        children.add(_TxnRow(txn: t, accounts: accountsById, categories: categoriesById));
+        children.add(_TxnRow(txn: t, accounts: accounts, categories: categories));
         children.add(const Divider(height: 1, indent: 12));
       }
     }

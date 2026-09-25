@@ -13,6 +13,13 @@ bool isNetworkError(Object error) =>
     error is http.ClientException ||
     error is AuthRetryableFetchException;
 
+/// Why the last active account can't be archived (the database trigger
+/// `accounts_keep_one_active` raises this exact message).
+const String kKeepOneActiveAccount = 'Keep at least one active account.';
+
+bool _isLastActiveAccount(PostgrestException e) =>
+    e.message.contains(kKeepOneActiveAccount) || '${e.details ?? ''} ${e.hint ?? ''}'.contains('accounts_one_active');
+
 /// A short, plain-language explanation for the person using the app.
 /// Technical details stay in the exception, not on screen.
 String describeError(Object error) {
@@ -27,6 +34,8 @@ String describeError(Object error) {
         return 'That name is already used. Pick a different one.';
       case '23503':
         return 'That account or category no longer exists. Pick another one and try again.';
+      case '23514' when _isLastActiveAccount(error):
+        return kKeepOneActiveAccount;
       case '23514':
         return 'Some values were not accepted (for example an amount of zero or a missing destination account).';
       case 'PGRST301':

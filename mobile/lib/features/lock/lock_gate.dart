@@ -1,10 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../reminders/reminder_sync.dart';
 import 'lock_controller.dart';
 import 'lock_screen.dart';
+
+/// Whether the lock screen is covering the app: someone with a pattern is
+/// signed in and hasn't unlocked yet.
+final lockOverlayShownProvider = Provider<bool>((ref) {
+  final signedIn = ref.watch(currentUserIdProvider) != null;
+  final hasPattern = ref.watch(hasPatternProvider).value ?? false;
+  return signedIn && hasPattern && ref.watch(lockControllerProvider);
+});
+
+/// The lock overlay's own navigator (for its dialogs, e.g. "Forgot pattern?").
+final lockNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'lock');
+
+/// The app's Android back button handler (MaterialApp.router's
+/// backButtonDispatcher). While locked, back must never reach the router,
+/// which would pop the hidden screen underneath (an Edit transaction or a
+/// bill form with unsaved changes). It closes a dialog of the lock screen's
+/// instead, if one is open, and otherwise does nothing. Unlocked, the router
+/// handles it as usual.
+///
+/// This has to happen here rather than with a PopScope in [LockGate]: the
+/// gate sits above the router's navigator, where a PopScope has no route to
+/// attach to.
+class LockAwareBackButtonDispatcher extends RootBackButtonDispatcher {
+  LockAwareBackButtonDispatcher({required this.isLocked});
+
+  final bool Function() isLocked;
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (!isLocked()) return super.didPopRoute();
+    await lockNavigatorKey.currentState?.maybePop();
+    return true;
+  }
+}
 
 /// Wraps the whole app (MaterialApp.builder). It:
 ///  * locks when the app returns from the background after
@@ -12,7 +48,8 @@ import 'lock_screen.dart';
 ///  * unlocks right after an interactive Google sign-in (the user has just
 ///    proved who they are);
 ///  * shows [LockScreen] over everything while locked, and makes the app
-///    underneath unreachable (no taps, no screen reader, no back button).
+///    underneath unreachable (no taps, no screen reader; the back button is
+///    kept away from it by [LockAwareBackButtonDispatcher]).
 class LockGate extends ConsumerStatefulWidget {
   const LockGate({super.key, required this.child});
 
@@ -63,10 +100,7 @@ class _LockGateState extends ConsumerState<LockGate> {
       }
     });
 
-    final signedIn = ref.watch(currentUserIdProvider) != null;
-    final hasPattern = ref.watch(hasPatternProvider).value ?? false;
-    final locked = ref.watch(lockControllerProvider);
-    final showLock = signedIn && hasPattern && locked;
+    final showLock = ref.watch(lockOverlayShownProvider);
 
     return Stack(
       children: [
@@ -76,9 +110,14 @@ class _LockGateState extends ConsumerState<LockGate> {
         ),
         if (showLock)
           // Own Navigator so the lock screen can show dialogs ("Forgot pattern?").
+          // Dark status-bar icons: the lock screen is near-white in every theme.
           Positioned.fill(
-            child: Navigator(
-              onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => const LockScreen()),
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              value: kDarkStatusBarIcons,
+              child: Navigator(
+                key: lockNavigatorKey,
+                onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => const LockScreen()),
+              ),
             ),
           ),
       ],

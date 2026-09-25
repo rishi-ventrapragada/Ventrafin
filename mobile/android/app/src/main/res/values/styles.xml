@@ -5,8 +5,13 @@
     <style name="LaunchTheme" parent="Theme.AppCompat.Light.NoActionBar">
         <!-- Shown while the Flutter engine starts; removed on the first frame. -->
         <item name="android:windowBackground">@drawable/launch_background</item>
+        <!-- Dark status-bar icons: the launch screen is light. -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
     <style name="NormalTheme" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Dark status-bar icons until Flutter sets its own style: every theme's
+             page colour is near-white (screens with an app bar set theirs). -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

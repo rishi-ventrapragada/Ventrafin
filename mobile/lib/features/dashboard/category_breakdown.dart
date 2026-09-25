@@ -6,6 +6,7 @@ import '../../core/category_style.dart';
 import '../../core/errors.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
+import '../../core/offline_banner.dart';
 import '../../core/theme.dart';
 import '../../core/visual_badges.dart';
 import '../../data/models.dart';
@@ -38,8 +39,11 @@ class CategoryBreakdownCard extends ConsumerWidget {
 
     final Widget body;
     if (!async.hasValue && async.hasError) {
-      body = Text("Couldn't load the breakdown. ${describeError(async.error!)}",
-          style: TextStyle(color: theme.colorScheme.error));
+      body = LoadError(
+        compact: true,
+        message: describeError(async.error!),
+        onRetry: () => ref.invalidate(monthComparisonProvider(month)),
+      );
     } else if (!async.hasValue) {
       body = const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()));
     } else if (rows.isEmpty) {

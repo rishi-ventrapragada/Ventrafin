@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'theme_tokens.dart';
 
@@ -52,6 +53,16 @@ ThemeData buildAppTheme(ThemeTokens t) {
     snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
   );
 }
+
+/// Dark status-bar icons on a transparent bar, for screens without an app
+/// bar (sign-in, splash, lock): their page colour is near-white in every
+/// theme. Screens with an app bar get icons to suit its brand colour from
+/// the AppBar itself (dark on the yellow themes, light on the others).
+const SystemUiOverlayStyle kDarkStatusBarIcons = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.dark, // Android
+  statusBarBrightness: Brightness.light, // iOS naming; kept for completeness
+);
 
 /// The Ocean theme, used before the profile has loaded and in tests.
 ThemeData buildOceanTheme() => buildAppTheme(themeTokensFor('ocean'));

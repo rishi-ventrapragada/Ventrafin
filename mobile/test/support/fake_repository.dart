@@ -14,7 +14,7 @@ final fixedClock = DateTime.utc(2026, 9, 24, 19, 0);
 
 /// In-memory stand-in for Supabase, shared by the widget tests.
 class FakeRepository implements FinanceRepository {
-  final accounts = const [
+  List<Account> accounts = const [
     Account(id: 'acc-bank', name: 'Bank', type: AccountType.bank),
     Account(id: 'acc-cash', name: 'Cash', type: AccountType.cash),
     Account(id: 'acc-cc', name: 'Credit Card', type: AccountType.credit),
@@ -37,6 +37,20 @@ class FakeRepository implements FinanceRepository {
   /// What fetchTransactions returns.
   List<Txn> transactions = const [];
 
+  /// Every month's transactions, for fetchTransactionsBetween (the search);
+  /// null = [transactions].
+  List<Txn>? allTransactions;
+
+  /// Every fetchTransactionsBetween call.
+  final betweenCalls = <(DateTime, DateTime)>[];
+
+  /// Makes the next fetch of this kind fail.
+  Object? failNextFetchTransactionsWith;
+  Object? failNextFetchAccountsWith;
+  Object? failNextFetchCategoriesWith;
+  Object? failNextMonthTotalsWith;
+  Object? failNextComparisonWith;
+
   /// What fetchMonthComparison returns.
   List<CategoryComparison> comparison = const [];
 
@@ -54,11 +68,24 @@ class FakeRepository implements FinanceRepository {
 
   Object? failNextInsertWith;
 
-  @override
-  Future<List<Account>> fetchAccounts() async => accounts;
+  Object? _take(Object? failure, void Function() clear) {
+    if (failure != null) clear();
+    return failure;
+  }
 
   @override
-  Future<List<Category>> fetchCategories() async => categories;
+  Future<List<Account>> fetchAccounts() async {
+    final failure = _take(failNextFetchAccountsWith, () => failNextFetchAccountsWith = null);
+    if (failure != null) throw failure;
+    return accounts;
+  }
+
+  @override
+  Future<List<Category>> fetchCategories() async {
+    final failure = _take(failNextFetchCategoriesWith, () => failNextFetchCategoriesWith = null);
+    if (failure != null) throw failure;
+    return categories;
+  }
 
   @override
   Future<Txn> insertTransaction(String id, TxnDraft draft) async {
@@ -91,16 +118,40 @@ class FakeRepository implements FinanceRepository {
   }
 
   @override
-  Future<List<Txn>> fetchTransactions(YearMonth month) async => transactions;
+  Future<List<Txn>> fetchTransactions(YearMonth month) async {
+    final failure = _take(failNextFetchTransactionsWith, () => failNextFetchTransactionsWith = null);
+    if (failure != null) throw failure;
+    return transactions;
+  }
+
+  @override
+  Future<List<Txn>> fetchTransactionsBetween(DateTime from, DateTime to) async {
+    betweenCalls.add((from, to));
+    final failure = _take(failNextFetchTransactionsWith, () => failNextFetchTransactionsWith = null);
+    if (failure != null) throw failure;
+    return (allTransactions ?? transactions).where((t) => !t.date.isBefore(from) && !t.date.isAfter(to)).toList()
+      ..sort((a, b) {
+        final byDate = b.date.compareTo(a.date);
+        return byDate != 0 ? byDate : b.createdAt.compareTo(a.createdAt);
+      });
+  }
 
   @override
   Future<Txn?> fetchTransaction(String id) async => transactions.where((t) => t.id == id).firstOrNull;
 
   @override
-  Future<MonthTotals> fetchMonthTotals(YearMonth month) async => totals;
+  Future<MonthTotals> fetchMonthTotals(YearMonth month) async {
+    final failure = _take(failNextMonthTotalsWith, () => failNextMonthTotalsWith = null);
+    if (failure != null) throw failure;
+    return totals;
+  }
 
   @override
-  Future<List<CategoryComparison>> fetchMonthComparison(YearMonth month) async => comparison;
+  Future<List<CategoryComparison>> fetchMonthComparison(YearMonth month) async {
+    final failure = _take(failNextComparisonWith, () => failNextComparisonWith = null);
+    if (failure != null) throw failure;
+    return comparison;
+  }
 
   @override
   Future<Category> updateCategory(String id,
@@ -119,8 +170,94 @@ class FakeRepository implements FinanceRepository {
     return updated;
   }
 
+  /// Category and account writes, in order.
+  final categoryInserts = <({String name, TxnType kind})>[];
+  final categoryArchives = <({String id, bool archived})>[];
+  final accountInserts = <({String id, String name, AccountType type})>[];
+  final accountUpdates = <({String id, String name, AccountType type})>[];
+  final accountArchives = <({String id, bool archived})>[];
+  Object? failNextAccountWriteWith;
+
   @override
-  Future<Txn> updateTransaction(String id, TxnDraft draft) => throw UnimplementedError();
+  Future<Category> insertCategory({required String name, required TxnType kind}) async {
+    categoryInserts.add((name: name, kind: kind));
+    // The database picks the icon and colour; a tag and grey here.
+    final added = Category(
+      id: 'cat-new-${categoryInserts.length}',
+      name: name.trim(),
+      kind: kind,
+      color: const Color(0xFF546E7A),
+      archived: false,
+    );
+    categories = [...categories, added];
+    return added;
+  }
+
+  @override
+  Future<void> setCategoryArchived(String id, bool archived) async {
+    categoryArchives.add((id: id, archived: archived));
+    categories = [
+      for (final c in categories)
+        c.id == id
+            ? Category(id: c.id, name: c.name, kind: c.kind, color: c.color, archived: archived, iconKey: c.iconKey)
+            : c,
+    ];
+  }
+
+  void _failAccountWrite() {
+    final failure = _take(failNextAccountWriteWith, () => failNextAccountWriteWith = null);
+    if (failure != null) throw failure;
+  }
+
+  @override
+  Future<Account> insertAccount(String id, {required String name, required AccountType type}) async {
+    _failAccountWrite();
+    accountInserts.add((id: id, name: name, type: type));
+    final added = Account(id: id, name: name.trim(), type: type);
+    accounts = [...accounts, added];
+    return added;
+  }
+
+  @override
+  Future<void> updateAccount(String id, {required String name, required AccountType type}) async {
+    _failAccountWrite();
+    accountUpdates.add((id: id, name: name, type: type));
+    accounts = [
+      for (final a in accounts) a.id == id ? Account(id: a.id, name: name.trim(), type: type, archived: a.archived) : a,
+    ];
+  }
+
+  @override
+  Future<void> setAccountArchived(String id, bool archived) async {
+    _failAccountWrite();
+    accountArchives.add((id: id, archived: archived));
+    accounts = [
+      for (final a in accounts) a.id == id ? Account(id: a.id, name: a.name, type: a.type, archived: archived) : a,
+    ];
+  }
+
+  /// Transaction edits, in order.
+  final txnUpdates = <({String id, TxnDraft draft})>[];
+
+  @override
+  Future<Txn> updateTransaction(String id, TxnDraft draft) async {
+    txnUpdates.add((id: id, draft: draft));
+    final old = [...transactions, ...?allTransactions].firstWhere((t) => t.id == id);
+    return Txn(
+      id: id,
+      date: draft.date,
+      amountPaise: draft.amountPaise,
+      description: draft.description.trim(),
+      type: draft.type,
+      accountId: draft.accountId,
+      toAccountId: draft.toAccountId,
+      categoryId: draft.categoryId,
+      paymentMethod: draft.paymentMethod,
+      autoCategorized: false,
+      createdAt: old.createdAt,
+      updatedAt: old.updatedAt.add(const Duration(seconds: 1)),
+    );
+  }
 
   @override
   Future<void> deleteTransaction(String id) async => deletedTxnIds.add(id);
@@ -238,6 +375,7 @@ Txn testTxn(
   PaymentMethod? paymentMethod = PaymentMethod.upi,
   bool autoCategorized = false,
   DateTime? date,
+  DateTime? createdAt,
 }) =>
     Txn(
       id: id,
@@ -250,7 +388,7 @@ Txn testTxn(
       categoryId: type == TxnType.transfer ? null : categoryId,
       paymentMethod: paymentMethod,
       autoCategorized: autoCategorized,
-      createdAt: DateTime(2026),
+      createdAt: createdAt ?? DateTime(2026),
       updatedAt: DateTime(2026),
     );
 

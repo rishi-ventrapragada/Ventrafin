@@ -15,6 +15,8 @@ class CategoryChoice {
 
 /// Bottom sheet with every active category of [kind] as an icon tile, so a
 /// category can be found by its picture and colour, not only its name.
+/// Archived categories are left out, except the current one ([selectedId])
+/// of an existing entry, which shows as "Name (archived)".
 Future<CategoryChoice?> showCategoryPicker(
   BuildContext context, {
   required List<Category> categories,
@@ -59,7 +61,8 @@ Future<CategoryChoice?> showCategoryPicker(
                     sized(_Tile(
                       key: Key('category-option-${c.id}'),
                       avatar: CategoryAvatar(category: c, size: 40),
-                      label: c.name,
+                      // Only the current value of an existing entry can be archived here.
+                      label: c.archived ? '${c.name} (archived)' : c.name,
                       selected: c.id == selectedId,
                       onTap: () => Navigator.pop(context, CategoryChoice(c.id)),
                     )),

@@ -170,6 +170,15 @@ final monthComparisonProvider =
   return ref.watch(repositoryProvider).fetchMonthComparison(month);
 });
 
+/// Every transaction in every month, newest first: what a search on the
+/// Transactions screen looks through. Only fetched while a search is open
+/// (autoDispose), and re-fetched when transactions change.
+final allTransactionsProvider = FutureProvider.autoDispose<List<Txn>>((ref) {
+  _revision(ref, 'transactions');
+  ref.watch(currentUserIdProvider);
+  return ref.watch(repositoryProvider).fetchTransactionsBetween(DateTime(1900), DateTime(9999, 12, 31));
+});
+
 final transactionProvider = FutureProvider.autoDispose.family<Txn?, String>((ref, id) {
   _revision(ref, 'transactions');
   return ref.watch(repositoryProvider).fetchTransaction(id);

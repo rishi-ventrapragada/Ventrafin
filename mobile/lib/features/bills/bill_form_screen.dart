@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/errors.dart';
 import '../../core/money.dart';
+import '../../core/unsaved_changes.dart';
 import '../../core/visual_badges.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
@@ -39,6 +40,27 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
   /// Generated once, so retrying a failed save can't add the bill twice.
   final _newId = const Uuid().v4();
 
+  /// The form's values when it was filled in, to tell whether anything
+  /// changed since (null until then).
+  _BillValues? _filledWith;
+
+  _BillValues get _values => (
+    name: _name.text.trim(),
+    paise: parseRupeesToPaise(_amount.text),
+    kind: _kind,
+    dueDay: _dueDay,
+    accountId: _accountId,
+    categoryId: _categoryId,
+    reminder: _reminder,
+  );
+
+  /// Something was changed and not saved yet.
+  bool get _dirty {
+    final filled = _filledWith;
+    if (filled == null) return _name.text.trim().isNotEmpty || _amount.text.trim().isNotEmpty;
+    return _values != filled;
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -57,9 +79,22 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
       _categoryId = bill.categoryId;
       _reminder = bill.reminderEnabled;
       _filled = true;
+      _filledWith = _values;
     } else if (widget.billId == null && accounts.isNotEmpty) {
-      _accountId = (accounts.where((a) => a.type == AccountType.bank).firstOrNull ?? accounts.first).id;
+      final active = accounts.where((a) => !a.archived);
+      _accountId =
+          (active.where((a) => a.type == AccountType.bank).firstOrNull ?? active.firstOrNull ?? accounts.first).id;
       _filled = true;
+      // What was typed before the accounts arrived still counts as a change.
+      _filledWith = (
+        name: '',
+        paise: null,
+        kind: BillKind.utility,
+        dueDay: 10,
+        accountId: _accountId,
+        categoryId: null,
+        reminder: true,
+      );
     }
   }
 
@@ -141,156 +176,181 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
     final missing = widget.billId != null && bills != null && bill == null;
     final category = categories.where((c) => c.id == _categoryId).firstOrNull;
     final masterOff = ref.watch(effectiveProfileProvider)?.billRemindersEnabled == false;
+    // Active accounts, plus the bill's own one if it has been archived since.
+    final pickable = pickableAccounts(accounts, keepIds: [bill?.accountId]);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.billId == null ? 'Add bill' : 'Edit bill'),
-        actions: [
-          if (bill != null)
-            IconButton(
-              tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () async {
-                if (await confirmDeleteBill(context, ref, bill) && mounted) _close();
-              },
-            ),
-        ],
-      ),
-      body: missing
-          ? const Center(child: Text('This bill was deleted, perhaps on the web.'))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                TextField(
-                  key: const Key('bill-name'),
-                  controller: _name,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(labelText: 'Name', errorText: _tried ? _nameError : null),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<BillKind>(
-                  segments: const [
-                    ButtonSegment(value: BillKind.utility, icon: Icon(Icons.receipt_long), label: Text('Utility bill')),
-                    ButtonSegment(value: BillKind.emi, icon: Icon(Icons.event_repeat), label: Text('Loan EMI')),
-                  ],
-                  selected: {_kind},
-                  onSelectionChanged: (s) => setState(() => _kind = s.first),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        key: const Key('bill-amount'),
-                        controller: _amount,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'Usual amount',
-                          prefixText: '₹ ',
-                          errorText: _tried && _paise == null ? 'Enter an amount above zero' : null,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 130,
-                      child: DropdownButtonFormField<int>(
-                        key: const Key('bill-due-day'),
-                        initialValue: _dueDay,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Due day'),
-                        menuMaxHeight: 360,
-                        items: [
-                          for (var d = 1; d <= 31; d++)
-                            DropdownMenuItem(value: d, child: Text(d == 31 ? '31 (last)' : '$d')),
-                        ],
-                        onChanged: (d) => setState(() => _dueDay = d ?? _dueDay),
-                      ),
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 4),
-                  child: Text(
-                    'Due on the ${dueDayLabel(_dueDay)}. Shorter months use their last day.',
-                    style: theme.textTheme.bodySmall,
+    return UnsavedChangesScope(
+      dirty: _dirty && !missing,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.billId == null ? 'Add bill' : 'Edit bill'),
+          actions: [
+            if (bill != null)
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () async {
+                  if (await confirmDeleteBill(context, ref, bill) && mounted) _close();
+                },
+              ),
+          ],
+        ),
+        body: missing
+            ? const Center(child: Text('This bill was deleted, perhaps on the web.'))
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  TextField(
+                    key: const Key('bill-name'),
+                    controller: _name,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(labelText: 'Name', errorText: _tried ? _nameError : null),
+                    onChanged: (_) => setState(() {}),
                   ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('bill-account-$_accountId'),
-                  initialValue: _accountId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Paid from'),
-                  items: [
-                    for (final a in accounts)
-                      DropdownMenuItem(
-                        value: a.id,
-                        child: Row(
-                          children: [
-                            AccountAvatar(type: a.type, size: 22),
-                            const SizedBox(width: 8),
-                            Text(a.name),
+                  const SizedBox(height: 12),
+                  SegmentedButton<BillKind>(
+                    segments: const [
+                      ButtonSegment(
+                        value: BillKind.utility,
+                        icon: Icon(Icons.receipt_long),
+                        label: Text('Utility bill'),
+                      ),
+                      ButtonSegment(value: BillKind.emi, icon: Icon(Icons.event_repeat), label: Text('Loan EMI')),
+                    ],
+                    selected: {_kind},
+                    onSelectionChanged: (s) => setState(() => _kind = s.first),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('bill-amount'),
+                          controller: _amount,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: 'Usual amount',
+                            prefixText: '₹ ',
+                            errorText: _tried && _paise == null ? 'Enter an amount above zero' : null,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 130,
+                        child: DropdownButtonFormField<int>(
+                          key: const Key('bill-due-day'),
+                          initialValue: _dueDay,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Due day'),
+                          menuMaxHeight: 360,
+                          items: [
+                            for (var d = 1; d <= 31; d++)
+                              DropdownMenuItem(value: d, child: Text(d == 31 ? '31 (last)' : '$d')),
                           ],
+                          onChanged: (d) => setState(() => _dueDay = d ?? _dueDay),
                         ),
                       ),
-                  ],
-                  onChanged: (v) => setState(() => _accountId = v),
-                ),
-                const SizedBox(height: 12),
-                InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Category'),
-                  child: InkWell(
-                    key: const Key('bill-category'),
-                    onTap: () => _pickCategory(categories),
-                    child: Row(
-                      children: [
-                        category == null
-                            ? const AutoCategoryAvatar(size: 24)
-                            : CategoryAvatar(category: category, size: 24),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(category?.name ?? 'Auto (from the name)')),
-                        const Icon(Icons.arrow_drop_down),
-                      ],
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 4),
+                    child: Text(
+                      'Due on the ${dueDayLabel(_dueDay)}. Shorter months use their last day.',
+                      style: theme.textTheme.bodySmall,
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                SwitchListTile(
-                  key: const Key('bill-reminder'),
-                  contentPadding: EdgeInsets.zero,
-                  value: _reminder,
-                  onChanged: (v) => setState(() => _reminder = v),
-                  title: const Text('Remind me'),
-                  subtitle: Text(
-                    masterOff
-                        ? 'Bill reminders are switched off in Settings'
-                        : 'Before the due date and on the day, at $kBillReminderTime',
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('bill-account-$_accountId'),
+                    initialValue: _accountId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Paid from'),
+                    items: [
+                      for (final a in pickable)
+                        DropdownMenuItem(
+                          value: a.id,
+                          child: Row(
+                            children: [
+                              AccountAvatar(type: a.type, size: 22),
+                              const SizedBox(width: 8),
+                              Flexible(child: Text(accountPickerLabel(a), overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => _accountId = v),
                   ),
-                ),
-                if (bill != null) _PaidThrough(bill: bill),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                  const SizedBox(height: 12),
+                  InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    child: InkWell(
+                      key: const Key('bill-category'),
+                      onTap: () => _pickCategory(categories),
+                      child: Row(
+                        children: [
+                          category == null
+                              ? const AutoCategoryAvatar(size: 24)
+                              : CategoryAvatar(category: category, size: 24),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              category == null
+                                  ? 'Auto (from the name)'
+                                  : '${category.name}${category.archived ? ' (archived)' : ''}',
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
+                        ],
+                      ),
+                    ),
                   ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  key: const Key('bill-save'),
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.check),
-                  label: Text(widget.billId == null ? 'Add bill' : 'Save'),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    key: const Key('bill-reminder'),
+                    contentPadding: EdgeInsets.zero,
+                    value: _reminder,
+                    onChanged: (v) => setState(() => _reminder = v),
+                    title: const Text('Remind me'),
+                    subtitle: Text(
+                      masterOff
+                          ? 'Bill reminders are switched off in Settings'
+                          : 'Before the due date and on the day, at $kBillReminderTime',
+                    ),
+                  ),
+                  if (bill != null) _PaidThrough(bill: bill),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                    ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    key: const Key('bill-save'),
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.check),
+                    label: Text(widget.billId == null ? 'Add bill' : 'Save'),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
+
+typedef _BillValues = ({
+  String name,
+  int? paise,
+  BillKind kind,
+  int dueDay,
+  String? accountId,
+  String? categoryId,
+  bool reminder,
+});
 
 /// "Paid up to September 2026", with a way to take the last month back.
 class _PaidThrough extends ConsumerWidget {

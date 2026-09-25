@@ -30,18 +30,29 @@ class VentrafinApp extends ConsumerWidget {
       final route = next.value;
       if (route != null) ref.read(routerProvider).go(route);
     });
+    final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'Ventrafin',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(themeTokensFor(ref.watch(themeIdProvider))),
       themeMode: ThemeMode.light,
-      routerConfig: ref.watch(routerProvider),
+      // The router's parts, with our own back-button dispatcher: while the
+      // lock screen is up, back must not pop the screen underneath it.
+      routerDelegate: router.routerDelegate,
+      routeInformationParser: router.routeInformationParser,
+      routeInformationProvider: router.routeInformationProvider,
+      backButtonDispatcher: ref.watch(backButtonDispatcherProvider),
       // Order matters: the lock overlay covers everything, including the
       // offline banner; the banner sits above every screen.
       builder: (context, child) => LockGate(child: OfflineBanner(child: child ?? const SizedBox.shrink())),
     );
   }
 }
+
+/// See [LockAwareBackButtonDispatcher].
+final backButtonDispatcherProvider = Provider<BackButtonDispatcher>(
+  (ref) => LockAwareBackButtonDispatcher(isLocked: () => ref.read(lockOverlayShownProvider)),
+);
 
 /// Shown instead of the app when the build-time config is missing or wrong.
 class ConfigErrorApp extends StatelessWidget {
