@@ -38,6 +38,17 @@ mobile/android/app/google-services.json
 *.jks
 *.keystore
 
+# ---- Build output anywhere (safety net; the folders above are the usual ones) ----
+build/
+dist/
+coverage/
+.gradle/
+.dart_tool/
+*.tsbuildinfo
+# Release artefacts: an APK/AAB is signed output, never source
+*.apk
+*.aab
+
 # ---- Claude Code: personal/local settings (shared .mcp.json IS committed) ----
 .claude/settings.local.json
 
