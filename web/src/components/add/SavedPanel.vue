@@ -54,7 +54,7 @@ const autoCount = computed(() => props.saved.filter((t) => t.autoCategorized).le
             <td>
               <span class="flex items-center gap-1.5">
                 <MerchantBadge :description="t.description" :size="18" />
-                <span :class="t.description ? '' : 'italic text-slate-500'">{{ t.description || '(no description)' }}</span>
+                <span :class="t.description ? '' : 'italic text-slate-600'">{{ t.description || '(no description)' }}</span>
               </span>
             </td>
             <td

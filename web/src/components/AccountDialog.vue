@@ -6,7 +6,6 @@
 // Enter saves; X or Escape asks before throwing away what was typed.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref, useId, watch } from 'vue'
 import { useApp } from '@/data/appContext'
 import { submitOnEnter } from '@/directives'
@@ -15,13 +14,14 @@ import { ACCOUNT_NAME_MAX, ACCOUNT_TYPES, ACCOUNT_TYPE_ORDER, accountNameError, 
 import AccountAvatar from './AccountAvatar.vue'
 import AppIcon from './AppIcon.vue'
 import { useGuardedClose } from './useAsk'
+import { useNotify } from './useNotify'
 
 /** `undefined`: closed; `null`: a new account; an account: edit it. */
 const props = defineProps<{ account: Account | null | undefined }>()
 const emit = defineEmits<{ close: [] }>()
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const formId = useId()
 
 const name = ref('')
@@ -83,7 +83,7 @@ async function save() {
     saving.value = false
   }
   app.bump(['accounts'])
-  toast.add({ severity: 'success', summary: `${a ? 'Saved' : 'Added'} ${newName}`, life: 3000 })
+  notify.success(`${a ? 'Saved' : 'Added'} ${newName}`)
   emit('close')
 }
 
@@ -111,7 +111,7 @@ async function archive() {
     saving.value = false
   }
   app.bump(['accounts'])
-  toast.add({ severity: 'success', summary: `Archived ${a.name}`, life: 3000 })
+  notify.success(`Archived ${a.name}`)
   emit('close')
 }
 </script>

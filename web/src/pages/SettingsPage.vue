@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
-import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
 import PasskeySection from '@/components/PasskeySection.vue'
+import { useNotify } from '@/components/useNotify'
+import { useSignOut } from '@/components/useSignOut'
 import ImportDialog from '@/components/import/ImportDialog.vue'
 import { useApp } from '@/data/appContext'
 import { describeError } from '@/lib/errors'
@@ -14,8 +14,8 @@ import { formatTimeOfDay } from '@/lib/models'
 import { THEMES, themeById, type ThemeId } from '@/lib/theme'
 
 const app = useApp()
-const confirm = useConfirm()
-const toast = useToast()
+const notify = useNotify()
+const signOut = useSignOut()
 
 const live = computed(() =>
   app.live.value === 'live' ? 'Connected. Changes on the phone show here within seconds.' : 'Reconnecting to live updates…',
@@ -29,25 +29,8 @@ async function pickTheme(id: ThemeId) {
   try {
     await app.setTheme(id)
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Theme not saved', detail: describeError(e), life: 5000 })
+    notify.error('Theme not saved', describeError(e))
   }
-}
-
-function signOut() {
-  confirm.require({
-    header: 'Sign out?',
-    message: 'Your data stays in your account. Sign in with Google to come back. The phone stays signed in.',
-    acceptLabel: 'Sign out',
-    rejectLabel: 'Cancel',
-    rejectProps: { severity: 'secondary', outlined: true },
-    accept: async () => {
-      try {
-        await app.auth.signOut()
-      } catch (e) {
-        toast.add({ severity: 'error', summary: 'Sign-out failed', detail: describeError(e) })
-      }
-    },
-  })
 }
 </script>
 

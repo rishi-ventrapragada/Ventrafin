@@ -5,20 +5,20 @@
 // Enter adds; X or Escape asks before throwing away what was typed.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref, useId, watch } from 'vue'
 import { useApp } from '@/data/appContext'
 import { submitOnEnter } from '@/directives'
 import { AppError, describeError } from '@/lib/errors'
 import { CATEGORY_NAME_MAX, categoryNameError, type CategoryKind } from '@/lib/models'
 import { useGuardedClose } from './useAsk'
+import { useNotify } from './useNotify'
 
 /** `null`: closed; a kind: open, starting on that kind. */
 const props = defineProps<{ kind: CategoryKind | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const formId = useId()
 
 const KINDS: readonly { value: CategoryKind; label: string }[] = [
@@ -76,7 +76,7 @@ async function save() {
     saving.value = false
   }
   app.bump(['categories'])
-  toast.add({ severity: 'success', summary: `Added ${newName}`, life: 3000 })
+  notify.success(`Added ${newName}`)
   emit('close')
 }
 </script>

@@ -79,3 +79,21 @@ export function categoryOptions(categories: readonly Category[], kind: CategoryK
     ...active.map((c) => ({ label: pickerLabel(c), category: c })),
   ]
 }
+
+// ---------------------------------------------------------------------------
+// The Transactions type filter (kept in the URL as ?type=)
+// ---------------------------------------------------------------------------
+
+export type TypeFilter = 'all' | TxnType
+
+export const TYPE_FILTER_OPTIONS: { value: TypeFilter; label: string; icon: string }[] = [
+  { value: 'all', label: 'All types', icon: 'filter_list' },
+  { value: 'expense', label: 'Expenses', icon: TXN_TYPES[0]!.icon.name },
+  { value: 'income', label: 'Income', icon: TXN_TYPES[1]!.icon.name },
+  { value: 'transfer', label: 'Transfers', icon: TXN_TYPES[2]!.icon.name },
+]
+
+/** `?type=` from the URL: expense, income or transfer; anything else is "all". */
+export function typeFilterFromQuery(value: unknown): TypeFilter {
+  return value === 'expense' || value === 'income' || value === 'transfer' ? value : 'all'
+}

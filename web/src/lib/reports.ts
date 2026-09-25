@@ -37,8 +37,23 @@ export function savedPercent(incomePaise: number, expensePaise: number): number 
 /** How many categories get their own colour in the trend chart; the rest fold into "Other". */
 export const TREND_TOP_CATEGORIES = 5
 
-/** "Other" in the trend: a neutral grey that is not in the category palette. */
-export const OTHER_SERIES_COLOR = '#B0BEC5'
+/**
+ * "Other" in the trend: a neutral grey that is not in the category palette,
+ * dark enough (3:1 or more) to show on every surface in every theme. Same as the phone.
+ */
+export const OTHER_SERIES_COLOR = '#7F8C93'
+
+/** Months the Reports trends can cover. */
+export const TREND_SPANS = [6, 12] as const
+export type TrendSpan = (typeof TREND_SPANS)[number]
+
+/** `?span=` from the URL: 12, or the default 6 for anything else. */
+export function spanFromQuery(value: unknown): TrendSpan {
+  return value === '12' ? 12 : 6
+}
+
+/** The caption under the Reports month summary (same words as the phone). */
+export const SUMMARY_CAPTION = 'Net = income minus spending. Saved = the part of income not spent, as a percentage.'
 
 export interface TrendSeries {
   /** Category id, `uncategorized` or `other`. */

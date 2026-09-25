@@ -6,6 +6,7 @@ import { AppError } from '@/lib/errors'
 import { methodLabel } from '@/lib/models'
 import type {
   Account,
+  AccountTotals,
   AccountType,
   Bill,
   BillDraft,
@@ -411,6 +412,27 @@ export class FakeRepository implements FinanceRepository {
       }
     }
     return [...out.values()]
+  }
+
+  accountTotalsMonths: YearMonth[] = []
+
+  /** Like get_account_totals(): every account (archived too), by name, from `txns`. */
+  async fetchAccountTotals(month: YearMonth): Promise<AccountTotals[]> {
+    this.accountTotalsMonths.push(month)
+    await this.wait()
+    const rows = this.inMonth(month)
+    const sum = (list: Txn[]) => list.reduce((s, t) => s + t.amountPaise, 0)
+    return [...this.accounts]
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+      .map((a) => ({
+        accountId: a.id,
+        month,
+        expensePaise: sum(rows.filter((t) => t.type === 'expense' && t.accountId === a.id)),
+        incomePaise: sum(rows.filter((t) => t.type === 'income' && t.accountId === a.id)),
+        transferOutPaise: sum(rows.filter((t) => t.type === 'transfer' && t.accountId === a.id)),
+        transferInPaise: sum(rows.filter((t) => t.type === 'transfer' && t.toAccountId === a.id)),
+        entryCount: rows.filter((t) => t.accountId === a.id || t.toAccountId === a.id).length,
+      }))
   }
 
   profile: Profile = {

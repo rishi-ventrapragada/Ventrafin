@@ -297,6 +297,20 @@ export type Database = {
         Args: { p_from?: string; p_ids?: string[]; p_to?: string }
         Returns: string
       }
+      // Hand-added (migration 20260926090000_audit_round_2, not applied yet): replace
+      // with the generated types once it is.
+      get_account_totals: {
+        Args: { p_month?: string }
+        Returns: {
+          account_id: string
+          entry_count: number
+          expense_paise: number
+          income_paise: number
+          month: string
+          transfer_in_paise: number
+          transfer_out_paise: number
+        }[]
+      }
       get_bill_schedule: {
         Args: { p_today?: string }
         Returns: {
@@ -313,6 +327,8 @@ export type Database = {
           paid_through_month: string
           reminder_enabled: boolean
           status: string
+          // Hand-added with get_account_totals (above).
+          upcoming_due_dates: string[]
         }[]
       }
       get_month_comparison: {

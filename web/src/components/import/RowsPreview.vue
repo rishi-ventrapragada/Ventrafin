@@ -102,12 +102,12 @@ function problemText(r: PreviewRow) {
           :data-line="r.line"
           :data-valid="r.parsed.draft ? 'true' : 'false'"
           :data-skipped="skipped?.has(r.line) ? 'true' : undefined"
-          :class="!r.parsed.draft ? 'bg-red-50' : skipped?.has(r.line) ? 'text-slate-500' : ''"
+          :class="!r.parsed.draft ? 'bg-red-50' : skipped?.has(r.line) ? 'bg-slate-50 text-slate-600' : ''"
         >
           <td class="num text-slate-600">{{ r.line }}</td>
           <td>
             <AppIcon v-if="!r.parsed.draft" name="error" filled :size="19" class="text-expense" label="Can't be saved" />
-            <AppIcon v-else-if="skipped?.has(r.line)" name="content_copy" :size="19" class="text-slate-500" label="Already saved" />
+            <AppIcon v-else-if="skipped?.has(r.line)" name="content_copy" :size="19" class="text-slate-600" label="Already saved" />
             <AppIcon v-else-if="r.parsed.issues.length" name="warning" filled :size="19" class="text-uncat" label="Note" />
             <AppIcon v-else name="check_circle" :size="19" class="text-income" label="Ready" />
           </td>

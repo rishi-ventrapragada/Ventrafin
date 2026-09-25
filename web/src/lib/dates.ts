@@ -233,3 +233,12 @@ export function parseMonthKey(key: unknown): YearMonth | null {
   if (month < 1 || month > 12 || year < MIN_YEAR || year > MAX_YEAR) return null
   return { year, month }
 }
+
+/**
+ * A `?month=yyyy-mm` from the URL, or null when absent or not a valid month
+ * (malformed, or after `max`, the current month): the page then shows its default.
+ */
+export function monthFromQuery(value: unknown, max: YearMonth): YearMonth | null {
+  const m = parseMonthKey(value)
+  return m && compareMonths(m, max) <= 0 ? m : null
+}

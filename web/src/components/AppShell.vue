@@ -1,29 +1,22 @@
 <script setup lang="ts">
 // Sidebar with one route per section (DECISIONS.md D8), a slim top bar with
-// the page title and the live-sync status, and the offline banner.
-import { useToast } from 'primevue/usetoast'
+// the page title and the live-sync status, and the offline banner. Below
+// SIDEBAR_RAIL_BELOW pixels wide the sidebar is a rail of icons (names as
+// tooltips), so the pages keep their width on a 1080p screen at 150 %.
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useApp } from '@/data/appContext'
-import { describeError } from '@/lib/errors'
+import { NAV, RAIL_QUERY } from '@/lib/layout'
 import AppIcon from './AppIcon.vue'
 import AppLogo from './AppLogo.vue'
 import OfflineBanner from './OfflineBanner.vue'
+import { useMediaQuery } from './useMediaQuery'
+import { useSignOut } from './useSignOut'
 
 const app = useApp()
 const route = useRoute()
-const toast = useToast()
-
-const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/transactions', label: 'Transactions', icon: 'receipt_long' },
-  { to: '/add', label: 'Add', icon: 'add_circle' },
-  { to: '/categories', label: 'Categories', icon: 'category' },
-  { to: '/accounts', label: 'Accounts', icon: 'account_balance_wallet' },
-  { to: '/bills', label: 'Bills', icon: 'event_note' },
-  { to: '/reports', label: 'Reports', icon: 'bar_chart' },
-  { to: '/settings', label: 'Settings', icon: 'settings' },
-] as const
+const signOut = useSignOut()
+const rail = useMediaQuery(RAIL_QUERY)
 
 const title = computed(() => (route.meta.title as string | undefined) ?? '')
 
@@ -37,47 +30,59 @@ const liveLabel = computed(() => {
       return { text: 'Connecting…', dot: 'bg-slate-400', tip: 'Connecting to live updates.' }
   }
 })
-
-async function signOut() {
-  try {
-    await app.auth.signOut()
-  } catch (e) {
-    toast.add({ severity: 'error', summary: 'Sign-out failed', detail: describeError(e) })
-  }
-}
 </script>
 
 <template>
   <div class="flex h-screen min-h-0 overflow-hidden">
-    <nav class="flex w-52 shrink-0 flex-col bg-brand text-on-brand" aria-label="Sections">
-      <div class="flex items-center gap-2 px-4 pt-4 pb-5">
+    <nav
+      class="flex shrink-0 flex-col bg-brand text-on-brand"
+      :class="rail ? 'w-14' : 'w-52'"
+      aria-label="Sections"
+      :data-rail="rail ? 'true' : undefined"
+      data-testid="sidebar"
+    >
+      <div class="flex items-center gap-2 pt-4 pb-5" :class="rail ? 'justify-center' : 'px-4'">
         <AppLogo :size="32" class="rounded-md ring-1 ring-on-brand/30" />
-        <span class="text-xl font-semibold tracking-wide">Ventrafin</span>
+        <span v-if="!rail" class="text-xl font-semibold tracking-wide">Ventrafin</span>
       </div>
-      <ul class="flex flex-col gap-0.5 px-2">
+      <ul class="flex flex-col gap-0.5" :class="rail ? 'px-1.5' : 'px-2'">
         <li v-for="item in NAV" :key="item.to">
           <RouterLink
             v-slot="{ isActive, href, navigate }"
             :to="item.to"
             custom
           >
+            <!-- The current section: a darker row (text stays 4.5:1 on it in every theme), bold, a filled icon and the marker. -->
             <a
+              v-tooltip.right="rail ? item.label : null"
               :href="href"
-              class="flex items-center gap-3 rounded-md px-3 py-2 text-[1.03rem] transition-colors"
-              :class="isActive ? 'bg-on-brand/15 font-semibold shadow-[inset_3px_0_0_var(--vf-brand-indicator)]' : 'text-on-brand/90 hover:bg-on-brand/10'"
+              class="flex items-center gap-3 rounded-md py-2 text-[1.03rem] transition-colors"
+              :class="[
+                rail ? 'justify-center px-0' : 'px-3',
+                isActive ? 'bg-black/15 font-semibold shadow-[inset_3px_0_0_var(--vf-brand-indicator)]' : 'hover:bg-black/10',
+              ]"
               :aria-current="isActive ? 'page' : undefined"
+              :aria-label="rail ? item.label : undefined"
               @click="navigate"
             >
               <AppIcon :name="item.icon" :filled="isActive" :size="24" />
-              {{ item.label }}
+              <template v-if="!rail">{{ item.label }}</template>
             </a>
           </RouterLink>
         </li>
       </ul>
-      <div class="mt-auto border-t border-on-brand/15 px-4 py-3 text-sm">
-        <div class="truncate text-on-brand/90" :title="app.auth.user.value?.email">{{ app.auth.user.value?.email }}</div>
-        <button type="button" class="mt-1 inline-flex items-center gap-1.5 text-on-brand/90 hover:text-on-brand hover:underline" @click="signOut">
-          <AppIcon name="logout" :size="19" /> Sign out
+      <div class="mt-auto border-t border-on-brand/15 py-3 text-sm" :class="rail ? 'flex justify-center' : 'px-4'">
+        <div v-if="!rail" class="truncate" :title="app.auth.user.value?.email">{{ app.auth.user.value?.email }}</div>
+        <button
+          v-tooltip.right="rail ? `Sign out (${app.auth.user.value?.email ?? ''})` : null"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md hover:underline"
+          :class="rail ? 'p-2 hover:bg-black/10' : 'mt-1'"
+          :aria-label="rail ? 'Sign out' : undefined"
+          data-testid="sidebar-sign-out"
+          @click="signOut"
+        >
+          <AppIcon name="logout" :size="19" /><template v-if="!rail"> Sign out</template>
         </button>
       </div>
     </nav>

@@ -6,9 +6,9 @@
 // Enter downloads.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref, useId } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { submitOnEnter } from '@/directives'
 import { downloadCsv } from '@/lib/download'
@@ -34,7 +34,7 @@ const props = defineProps<{
 const visible = defineModel<boolean>('visible', { required: true })
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const formId = useId()
 
 type Choice = RangePreset | 'shown'
@@ -90,9 +90,7 @@ async function download() {
       return
     }
     downloadCsv(exportFileName(range.value, app.today.value, { filtered: Boolean(ids) }), csv)
-    toast.add({
-      severity: 'success',
-      summary: `Downloaded ${count} transaction${count === 1 ? '' : 's'}`,
+    notify.success(`Downloaded ${count} transaction${count === 1 ? '' : 's'}`, {
       detail: 'The CSV file is in your Downloads folder. Double-click it to open it in Excel.',
       life: 6000,
     })

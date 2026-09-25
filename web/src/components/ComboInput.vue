@@ -228,7 +228,7 @@ defineExpose({ focus: () => input.value?.focus(), input })
   <div
     data-combo
     class="flex h-full w-full min-w-0 items-center gap-1.5"
-    :class="{ 'opacity-50': disabled }"
+    :data-disabled="disabled || undefined"
   >
     <slot name="prefix" />
     <!-- size="1": fills the cell (flex-1) without widening a table column when it opens. -->
@@ -239,7 +239,7 @@ defineExpose({ focus: () => input.value?.focus(), input })
       size="1"
       autocomplete="off"
       spellcheck="false"
-      class="h-full min-w-0 flex-1 bg-transparent outline-none"
+      class="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:text-slate-600 disabled:placeholder:text-slate-600"
       :value="text"
       :placeholder="placeholder"
       :disabled="disabled"
@@ -259,7 +259,7 @@ defineExpose({ focus: () => input.value?.focus(), input })
       v-if="!disabled"
       type="button"
       tabindex="-1"
-      class="shrink-0 rounded text-slate-500 hover:text-slate-800"
+      class="shrink-0 rounded text-slate-600 hover:text-slate-800"
       aria-label="Show choices"
       @mousedown="toggleFromButton"
     >

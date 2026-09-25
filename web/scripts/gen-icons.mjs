@@ -117,6 +117,8 @@ const outlined = [
   // Archiving accounts and categories (audit round 1)
   'archive',
   'unarchive',
+  // Transactions type filter (audit round 2)
+  'filter_list',
 ]
 
 // Keys are Material Icons names (what the database stores and Flutter draws).

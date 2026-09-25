@@ -11,11 +11,11 @@
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
-import { useToast } from 'primevue/usetoast'
 import { computed, reactive, ref, shallowRef, useId, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import { newRowKey } from '@/components/add/gridRow'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { handOffToGrid } from '@/data/gridHandoff'
 import { submitOnEnter } from '@/directives'
@@ -35,7 +35,7 @@ const BATCH = 500
 const visible = defineModel<boolean>('visible', { required: true })
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const router = useRouter()
 const formId = useId()
 
@@ -190,9 +190,7 @@ async function save() {
     if (done > 0) app.bump(['transactions', 'categories'])
   }
 
-  toast.add({
-    severity: 'success',
-    summary: `Imported ${done} transaction${done === 1 ? '' : 's'}`,
+  notify.success(`Imported ${done} transaction${done === 1 ? '' : 's'}`, {
     detail: auto ? `${auto} categorized automatically.` : undefined,
     life: 5000,
   })

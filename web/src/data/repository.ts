@@ -4,6 +4,7 @@
 import type { YearMonth } from '@/lib/dates'
 import type {
   Account,
+  AccountTotals,
   AccountType,
   Bill,
   BillDraft,
@@ -117,6 +118,12 @@ export interface FinanceRepository {
 
   /** `get_monthly_category_totals(from, to)`: per month and category. */
   fetchMonthlyCategoryTotals(from: YearMonth, to: YearMonth): Promise<MonthlyCategoryTotal[]>
+
+  /**
+   * `get_account_totals(p_month)`: per account (archived included, by name),
+   * `month`'s spending, income, transfers out and in, and entry count.
+   */
+  fetchAccountTotals(month: YearMonth): Promise<AccountTotals[]>
 
   /** The signed-in user's settings (theme, reminders). */
   fetchProfile(userId: string): Promise<Profile>

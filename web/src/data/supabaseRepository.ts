@@ -3,6 +3,7 @@ import { monthStart, nextMonth, type YearMonth } from '@/lib/dates'
 import { AppError, toAppError } from '@/lib/errors'
 import {
   accountFromRow,
+  accountTotalsFromRow,
   billDraftToRow,
   billFromRow,
   categoryFromRow,
@@ -229,6 +230,11 @@ export class SupabaseFinanceRepository implements FinanceRepository {
       this.client.rpc('get_monthly_category_totals', { p_from_month: monthStart(from), p_to_month: monthStart(to) }),
     )
     return rows.map(monthlyCategoryTotalFromRow)
+  }
+
+  async fetchAccountTotals(month: YearMonth) {
+    const rows = await run(this.client.rpc('get_account_totals', { p_month: monthStart(month) }))
+    return rows.map(accountTotalsFromRow)
   }
 
   async fetchProfile(userId: string) {

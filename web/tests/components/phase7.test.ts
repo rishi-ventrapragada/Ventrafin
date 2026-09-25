@@ -341,7 +341,7 @@ describe('Windows Hello in Settings', () => {
     expect(state.registers).toBe(1)
     expect(byTestId('passkey-list')!.textContent).toContain('Windows Hello')
     expect(byTestId('passkey-list')!.textContent).toContain('25/09/2026')
-    expect(document.body.textContent).toContain('Windows Hello is set up')
+    expect(document.body.textContent).toContain('Windows Hello sign-in is set up')
   })
 
   it('cancelling the Windows prompt is not an error', async () => {

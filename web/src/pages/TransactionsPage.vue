@@ -2,8 +2,8 @@
 // One month of transactions in a dense, editable table. Click a cell, or Tab
 // to it and press Enter or F2, to edit it in place (Enter or Tab saves, Esc
 // cancels, and focus goes back to the cell); changing a category teaches the
-// database's learning trigger. Filters by account, category and text; the
-// search can cover every month. Delete one row or several after confirming,
+// database's learning trigger. Filters by account, category, type and text;
+// the search can cover every month. Delete one row or several after confirming,
 // with a few seconds to undo it. Updates live.
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -12,7 +12,6 @@ import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
 import Toast from 'primevue/toast'
 import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
 import { computed, nextTick, reactive, ref, shallowRef, useId, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AccountAvatar from '@/components/AccountAvatar.vue'
@@ -23,6 +22,7 @@ import LoadError from '@/components/LoadError.vue'
 import MerchantBadge from '@/components/MerchantBadge.vue'
 import MonthSwitcher from '@/components/MonthSwitcher.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { submitOnEnter, vFocus } from '@/directives'
 import { cellEdit, editorText, isEditableField, type EditableField } from '@/lib/cellEdit'
@@ -44,12 +44,20 @@ import type { EntryContext } from '@/lib/entryRow'
 import { AppError, describeError } from '@/lib/errors'
 import { formatRupees, formatRupeesCompact } from '@/lib/money'
 import { ACCOUNT_TYPES, PAYMENT_METHODS, TXN_TYPES, activeOnly, pickerLabel, sortByName, type Txn, type TxnPatch } from '@/lib/models'
-import { METHOD_OPTIONS, TYPE_OPTIONS, accountOptions, categoryOptions } from '@/lib/options'
+import {
+  METHOD_OPTIONS,
+  TYPE_FILTER_OPTIONS,
+  TYPE_OPTIONS,
+  accountOptions,
+  categoryOptions,
+  typeFilterFromQuery,
+  type TypeFilter,
+} from '@/lib/options'
 
 const app = useApp()
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
+const notify = useNotify()
 const confirm = useConfirm()
 
 // ------------------------------------------------------------ month & filters (kept in the URL)
@@ -58,12 +66,14 @@ const currentMonth = computed(() => monthOf(app.today.value))
 const month = ref<YearMonth>(parseMonthKey(route.query.month) ?? currentMonth.value)
 const accountFilter = ref<string>(typeof route.query.account === 'string' ? route.query.account : 'all')
 const categoryFilter = ref<string>(typeof route.query.category === 'string' ? route.query.category : 'all')
+const typeFilter = ref<TypeFilter>(typeFilterFromQuery(route.query.type))
 const search = ref('')
 
-watch([month, accountFilter, categoryFilter], () => {
+watch([month, accountFilter, categoryFilter, typeFilter], () => {
   const query: Record<string, string> = { month: monthKey(month.value) }
   if (accountFilter.value !== 'all') query.account = accountFilter.value
   if (categoryFilter.value !== 'all') query.category = categoryFilter.value
+  if (typeFilter.value !== 'all') query.type = typeFilter.value
   void router.replace({ query })
 })
 
@@ -82,6 +92,8 @@ watch(
     if (account !== accountFilter.value) accountFilter.value = account
     const category = typeof q.category === 'string' ? q.category : 'all'
     if (category !== categoryFilter.value) categoryFilter.value = category
+    const type = typeFilterFromQuery(q.type)
+    if (type !== typeFilter.value) typeFilter.value = type
   },
 )
 
@@ -155,7 +167,9 @@ const allRows = computed<Row[]>(() =>
 )
 
 /** A search or filter is narrowing the list down. */
-const narrowing = computed(() => search.value.trim() !== '' || accountFilter.value !== 'all' || categoryFilter.value !== 'all')
+const narrowing = computed(
+  () => search.value.trim() !== '' || accountFilter.value !== 'all' || categoryFilter.value !== 'all' || typeFilter.value !== 'all',
+)
 
 const rows = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -163,6 +177,7 @@ const rows = computed(() => {
   if (allMonths.value && !narrowing.value) return []
   return allRows.value.filter((t) => {
     if (accountFilter.value !== 'all' && t.accountId !== accountFilter.value && t.toAccountId !== accountFilter.value) return false
+    if (typeFilter.value !== 'all' && t.type !== typeFilter.value) return false
     switch (categoryFilter.value) {
       case 'all':
         break
@@ -216,6 +231,7 @@ const shownForExport = computed(() => {
 function clearFilters() {
   accountFilter.value = 'all'
   categoryFilter.value = 'all'
+  typeFilter.value = 'all'
   search.value = ''
 }
 
@@ -288,7 +304,7 @@ function onEditComplete(e: DataTableCellEditCompleteEvent) {
     case 'unchanged':
       return
     case 'invalid':
-      toast.add({ severity: 'warn', summary: 'Not changed', detail: result.message, life: 6000 })
+      notify.warn('Not changed', { detail: result.message })
       return
     case 'needsTransferTarget':
       askTransferTarget(t)
@@ -302,7 +318,7 @@ async function applyPatch(t: Txn, patch: TxnPatch) {
   try {
     app.requireOnline()
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Not saved', detail: describeError(e) })
+    notify.error('Not saved', describeError(e))
     return
   }
   pending.set(t.id, { ...pending.get(t.id), ...patch })
@@ -315,19 +331,14 @@ async function applyPatch(t: Txn, patch: TxnPatch) {
     app.bump(['transactions'])
     if (updated.categoryId && !categoriesById.value.has(updated.categoryId)) app.bump(['categories'])
     if (patch.categoryId) {
-      toast.add({
-        severity: 'success',
-        summary: 'Category saved',
-        detail: 'Ventrafin will use it for similar descriptions from now on, on the phone too.',
-        life: 4000,
-      })
+      notify.success('Category saved', { detail: 'Ventrafin will use it for similar descriptions from now on, on the phone too.' })
     }
     if (patch.date && !allMonths.value && compareMonths(monthOf(patch.date), month.value) !== 0) {
-      toast.add({ severity: 'info', summary: `Moved to ${monthLabel(monthOf(patch.date))}`, life: 4000 })
+      notify.info(`Moved to ${monthLabel(monthOf(patch.date))}`, { life: 4000 })
     }
   } catch (e) {
     pending.delete(t.id)
-    toast.add({ severity: 'error', summary: 'Not saved', detail: `${describeError(e)} The previous value is back.` })
+    notify.error('Not saved', `${describeError(e)} The previous value is back.`)
     if (e instanceof AppError && e.code === 'PGRST116') app.bump(['transactions'])
   } finally {
     savingIds.delete(t.id)
@@ -355,7 +366,7 @@ function confirmTransfer() {
 
 const selected = ref<Row[]>([])
 // Only ever delete what is on screen.
-watch([month, accountFilter, categoryFilter, search, allMonths], () => (selected.value = []))
+watch([month, accountFilter, categoryFilter, typeFilter, search, allMonths], () => (selected.value = []))
 
 function describeTxn(t: Txn) {
   return `${formatRupees(t.amountPaise)} · ${t.description || '(no description)'} · ${formatDateIndian(t.date)}`
@@ -389,7 +400,7 @@ async function deleteTxns(list: Txn[]) {
   try {
     app.requireOnline()
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Not deleted', detail: describeError(e) })
+    notify.error('Not deleted', describeError(e))
     return
   }
   ids.forEach((id) => hidden.add(id))
@@ -398,15 +409,13 @@ async function deleteTxns(list: Txn[]) {
     selected.value = selected.value.filter((t) => !ids.includes(t.id))
     app.bump(['transactions'])
     // One Undo at a time: the latest delete's.
-    toast.removeGroup('undo')
+    notify.removeGroup('undo')
     undoable.value = list.map(plainTxn)
-    toast.add({ group: 'undo', severity: 'success', summary: `Deleted ${n} transaction${n === 1 ? '' : 's'}`, life: UNDO_MS })
-    if (n < ids.length) {
-      toast.add({ severity: 'info', summary: `${ids.length - n} had already been deleted (perhaps on the phone).`, life: 5000 })
-    }
+    notify.success(`Deleted ${n} transaction${n === 1 ? '' : 's'}`, { group: 'undo', life: UNDO_MS })
+    if (n < ids.length) notify.info(`${ids.length - n} had already been deleted (perhaps on the phone).`)
   } catch (e) {
     ids.forEach((id) => hidden.delete(id))
-    toast.add({ severity: 'error', summary: 'Not deleted', detail: describeError(e) })
+    notify.error('Not deleted', describeError(e))
   }
 }
 
@@ -432,7 +441,7 @@ function plainTxn(t: Txn): Txn {
 async function undoDelete() {
   const list = undoable.value
   undoable.value = null
-  toast.removeGroup('undo')
+  notify.removeGroup('undo')
   if (!list) return
   try {
     app.requireOnline()
@@ -454,9 +463,9 @@ async function undoDelete() {
     )
     list.forEach((t) => hidden.delete(t.id))
     app.bump(['transactions'])
-    toast.add({ severity: 'success', summary: `Restored ${list.length} transaction${list.length === 1 ? '' : 's'}`, life: 3000 })
+    notify.success(`Restored ${list.length} transaction${list.length === 1 ? '' : 's'}`)
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Not restored', detail: describeError(e) })
+    notify.error('Not restored', describeError(e))
   }
 }
 
@@ -464,18 +473,42 @@ function amountClass(t: Txn) {
   return t.type === 'expense' ? 'text-expense' : t.type === 'income' ? 'text-income' : 'text-transfer'
 }
 
+/** A row being saved: tinted and marked "Saving…" (not faded, so it stays readable). */
 function rowClass(t: Row) {
-  return savingIds.has(t.id) ? 'opacity-60' : ''
+  return savingIds.has(t.id) ? 'row-saving' : ''
 }
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col gap-2">
+    <!-- Two rows, so it fits 1280 px (1080p at 150 %) without wrapping: the month and actions, then search and filters. -->
     <div class="flex flex-wrap items-center gap-2">
       <h1 class="mr-1 text-xl font-semibold text-slate-800">Transactions</h1>
       <MonthSwitcher v-model="month" :max="currentMonth" :all-label="allMonths ? 'All months' : null" />
+      <div class="ml-auto flex gap-2">
+        <Button
+          v-if="selected.length"
+          :label="`Delete ${selected.length} selected`"
+          severity="danger"
+          outlined
+          data-testid="delete-selected"
+          @click="confirmDelete(selected)"
+        >
+          <template #icon><AppIcon name="delete" :size="20" /></template>
+        </Button>
+        <Button label="Export" severity="secondary" outlined data-testid="open-export" @click="exportVisible = true">
+          <template #icon><AppIcon name="download" :size="20" /></template>
+        </Button>
+        <RouterLink v-slot="{ navigate }" to="/add" custom>
+          <Button label="Add" @click="navigate">
+            <template #icon><AppIcon name="add" :size="20" /></template>
+          </Button>
+        </RouterLink>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2" data-testid="txn-filters">
       <span class="relative">
-        <AppIcon name="search" :size="20" class="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-slate-500" />
+        <AppIcon name="search" :size="20" class="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-slate-600" />
         <input
           v-model="search"
           type="search"
@@ -505,7 +538,7 @@ function rowClass(t: Row) {
         <template #option="{ option }">
           <span class="flex items-center gap-2">
             <AccountAvatar v-if="option.type" :type="option.type" :size="24" />
-            <AppIcon v-else name="account_balance_wallet" :size="22" class="text-slate-500" />{{ option.label }}
+            <AppIcon v-else name="account_balance_wallet" :size="22" class="text-slate-600" />{{ option.label }}
           </span>
         </template>
       </Select>
@@ -525,35 +558,28 @@ function rowClass(t: Row) {
             <TxnAvatar v-if="option.kind === 'category'" :category="option.category" :size="24" />
             <TxnAvatar v-else-if="option.kind === 'uncategorized'" kind="uncategorized" :size="24" />
             <TxnAvatar v-else-if="option.kind === 'transfer'" kind="transfer" :size="24" />
-            <AppIcon v-else name="category" :size="22" class="text-slate-500" />
+            <AppIcon v-else name="category" :size="22" class="text-slate-600" />
             {{ option.label }}
             <span v-if="option.category" class="ml-auto pl-2 text-sm text-slate-600">{{ option.category.kind }}</span>
           </span>
         </template>
       </Select>
-      <Button v-if="filtered || search" label="Clear filters" severity="secondary" text size="small" @click="clearFilters">
+      <Select
+        v-model="typeFilter"
+        :options="TYPE_FILTER_OPTIONS"
+        option-label="label"
+        option-value="value"
+        aria-label="Type"
+        class="w-40"
+        data-testid="type-filter"
+      >
+        <template #option="{ option }">
+          <span class="flex items-center gap-2"><AppIcon :name="option.icon" :size="20" class="text-slate-600" />{{ option.label }}</span>
+        </template>
+      </Select>
+      <Button v-if="filtered || search || typeFilter !== 'all'" label="Clear filters" severity="secondary" text size="small" @click="clearFilters">
         <template #icon><AppIcon name="filter_alt_off" :size="19" /></template>
       </Button>
-      <div class="ml-auto flex gap-2">
-        <Button
-          v-if="selected.length"
-          :label="`Delete ${selected.length} selected`"
-          severity="danger"
-          outlined
-          data-testid="delete-selected"
-          @click="confirmDelete(selected)"
-        >
-          <template #icon><AppIcon name="delete" :size="20" /></template>
-        </Button>
-        <Button label="Export" severity="secondary" outlined data-testid="open-export" @click="exportVisible = true">
-          <template #icon><AppIcon name="download" :size="20" /></template>
-        </Button>
-        <RouterLink v-slot="{ navigate }" to="/add" custom>
-          <Button label="Add" @click="navigate">
-            <template #icon><AppIcon name="add" :size="20" /></template>
-          </Button>
-        </RouterLink>
-      </div>
     </div>
 
     <div v-if="allMonths" class="card flex flex-wrap items-center gap-x-6 gap-y-1 px-3 py-2" data-testid="month-summary">
@@ -638,7 +664,7 @@ function rowClass(t: Row) {
 
         <Column selection-mode="multiple" header-style="width: 2.4rem" />
 
-        <Column field="date" header="Date" sortable style="width: 8.2rem" body-class="whitespace-nowrap" :pt="CELL_PT">
+        <Column field="date" header="Date" sortable style="width: 7.8rem" body-class="whitespace-nowrap" :pt="CELL_PT">
           <template #body="{ data }">
             <span class="tabular-nums">{{ formatDateIndian(data.date) }}</span>
             <span class="ml-1 text-sm text-slate-600">{{ shortWeekday(data.date) }}</span>
@@ -648,7 +674,7 @@ function rowClass(t: Row) {
           </template>
         </Column>
 
-        <Column field="description" header="Description" sortable style="width: 100%; min-width: 13.5rem" :pt="CELL_PT">
+        <Column field="description" header="Description" sortable style="width: 100%; min-width: 8rem" :pt="CELL_PT">
           <template #body="{ data }">
             <!-- w-0 + min-w-full: the text truncates instead of widening the table. -->
             <span class="flex w-0 min-w-full items-center gap-2">
@@ -656,7 +682,8 @@ function rowClass(t: Row) {
               <TxnAvatar v-else-if="!data.categoryId" kind="uncategorized" :size="28" />
               <TxnAvatar v-else :category="categoriesById.get(data.categoryId) ?? null" :size="28" />
               <MerchantBadge :description="data.description" :size="18" />
-              <span class="truncate" :class="data.description ? '' : 'italic text-slate-500'">{{ data.description || '(no description)' }}</span>
+              <span class="truncate" :class="data.description ? '' : 'italic text-slate-600'">{{ data.description || '(no description)' }}</span>
+              <span v-if="savingIds.has(data.id)" class="ml-auto shrink-0 text-sm font-semibold text-primary" data-testid="row-saving">Saving…</span>
             </span>
           </template>
           <template #editor>
@@ -664,7 +691,7 @@ function rowClass(t: Row) {
           </template>
         </Column>
 
-        <Column field="categoryId" sort-field="categoryName" header="Category" sortable style="width: 12rem" :pt="CELL_PT">
+        <Column field="categoryId" sort-field="categoryName" header="Category" sortable style="width: 10rem" :pt="CELL_PT">
           <template #body="{ data }">
             <span v-if="data.type === 'transfer'" class="font-medium text-transfer">Transfer</span>
             <span
@@ -706,7 +733,7 @@ function rowClass(t: Row) {
           field="amountPaise"
           header="Amount (₹)"
           sortable
-          style="width: 9rem"
+          style="width: 8.5rem"
           body-class="text-right whitespace-nowrap"
           :pt="AMOUNT_PT"
         >
@@ -718,7 +745,7 @@ function rowClass(t: Row) {
           </template>
         </Column>
 
-        <Column field="type" header="Type" sortable style="width: 7.5rem" body-class="whitespace-nowrap" :pt="CELL_PT">
+        <Column field="type" header="Type" sortable style="width: 7rem" body-class="whitespace-nowrap" :pt="CELL_PT">
           <template #body="{ data }">
             <span class="inline-flex items-center gap-1 text-slate-600">
               <AppIcon :name="TXN_TYPES.find((x) => x.value === data.type)!.icon.name" :size="18" />
@@ -737,7 +764,7 @@ function rowClass(t: Row) {
           sort-field="accountName"
           header="Account"
           sortable
-          style="width: 10rem"
+          style="width: 9rem"
           body-class="whitespace-nowrap"
           :pt="CELL_PT"
         >
@@ -761,10 +788,10 @@ function rowClass(t: Row) {
           </template>
         </Column>
 
-        <Column field="toAccountId" header="To" style="width: 9rem" body-class="whitespace-nowrap" :pt="CELL_PT">
+        <Column field="toAccountId" header="To" style="width: 8rem" body-class="whitespace-nowrap" :pt="CELL_PT">
           <template #body="{ data }">
             <span v-if="data.toAccountId" class="inline-flex items-center gap-1 text-slate-700">
-              <AppIcon name="arrow_forward" :size="17" class="text-slate-500" />{{ accountsById.get(data.toAccountId)?.name ?? '…' }}
+              <AppIcon name="arrow_forward" :size="17" class="text-slate-600" />{{ accountsById.get(data.toAccountId)?.name ?? '…' }}
             </span>
           </template>
           <template #editor="{ data }">
@@ -780,7 +807,7 @@ function rowClass(t: Row) {
           sort-field="methodName"
           header="Paid by"
           sortable
-          style="width: 7.5rem"
+          style="width: 7rem"
           body-class="whitespace-nowrap"
           :pt="CELL_PT"
         >
@@ -806,7 +833,7 @@ function rowClass(t: Row) {
           <template #body="{ data }">
             <button
               type="button"
-              class="flex rounded p-1 text-slate-500 hover:bg-red-50 hover:text-expense"
+              class="flex rounded p-1 text-slate-600 hover:bg-red-50 hover:text-expense"
               :aria-label="`Delete ${describeTxn(data)}`"
               data-testid="delete-row"
               @click="confirmDelete([data])"
@@ -885,6 +912,10 @@ function rowClass(t: Row) {
 .txn-table :deep(.p-datatable-tbody > tr > td) {
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
+}
+/* A row being saved: the theme's highlight tint (every amount colour reads at 4.5:1 on it). */
+.txn-table :deep(tr.row-saving > td) {
+  background: var(--vf-primary-soft);
 }
 .txn-table :deep(td[data-p-cell-editing='true']) {
   outline: 2px solid var(--p-primary-color);

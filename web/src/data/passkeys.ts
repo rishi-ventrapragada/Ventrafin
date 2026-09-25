@@ -116,7 +116,7 @@ export function describePasskeyError(e: unknown, step: 'sign-in' | 'register'): 
     case 'expired':
       return 'That took too long. Please try again.'
     case 'too-many':
-      return 'Your account has the most passkeys allowed. Remove one in Settings first.'
+      return 'Your account has the most Windows Hello sign-ins allowed. Remove one in Settings first.'
     case 'wrong-site':
       return 'Windows Hello only works on the Ventrafin site itself (ventrafin.vercel.app), not on this address.'
     case 'unsupported':
@@ -135,7 +135,7 @@ export function describePasskeyError(e: unknown, step: 'sign-in' | 'register'): 
 type PasskeyRow = { id: string; friendly_name?: string; created_at: string; last_used_at?: string }
 
 function fromRow(r: PasskeyRow): PasskeyInfo {
-  return { id: r.id, name: r.friendly_name?.trim() || 'Passkey', createdAt: r.created_at, lastUsedAt: r.last_used_at ?? null }
+  return { id: r.id, name: r.friendly_name?.trim() || 'Windows Hello sign-in', createdAt: r.created_at, lastUsedAt: r.last_used_at ?? null }
 }
 
 /** Re-throws supabase-js's `{ error }` so callers can classify it. */
@@ -200,10 +200,10 @@ export const noPasskeys: PasskeyService = {
   serverEnabled: async () => false,
   deviceSupport: async () => 'none',
   signIn: async () => {
-    throw new AppError('Passkeys are not available')
+    throw new AppError('Windows Hello sign-in is not available')
   },
   register: async () => {
-    throw new AppError('Passkeys are not available')
+    throw new AppError('Windows Hello sign-in is not available')
   },
   list: async () => [],
   remove: async () => {},

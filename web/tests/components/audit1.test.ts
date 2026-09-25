@@ -616,7 +616,7 @@ describe('Accounts: add, edit, archive, restore', () => {
 
   it('edits the name and type', async () => {
     const { repo } = await mountApp({ path: '/accounts' })
-    await click(document.querySelector('[data-account-id="acc-cc"]'))
+    await click(byTestId('edit-account-acc-cc'))
     expect(dialogTitles()).toContain('Edit account')
     await type(input('account-name'), 'SBI Card')
     await click(input('account-type-bank'))
@@ -627,7 +627,7 @@ describe('Accounts: add, edit, archive, restore', () => {
 
   it('archive asks first, then the account moves to Archived; Restore needs no confirm', async () => {
     const { repo } = await mountApp({ path: '/accounts' })
-    await click(document.querySelector('[data-account-id="acc-cash"]'))
+    await click(byTestId('edit-account-acc-cash'))
     await click(byTestId('account-archive'))
     expect(document.body.textContent).toContain('Archive Cash?')
     expect(document.body.textContent).toContain(
@@ -649,7 +649,7 @@ describe('Accounts: add, edit, archive, restore', () => {
     const repo = new FakeRepository()
     repo.accounts = repo.accounts.map((a) => ({ ...a, archived: a.id !== 'acc-bank' }))
     await mountApp({ path: '/accounts', repo })
-    await click(document.querySelector('[data-account-id="acc-bank"]'))
+    await click(byTestId('edit-account-acc-bank'))
     expect(byTestId<HTMLButtonElement>('account-archive')!.disabled).toBe(true)
     expect(byTestId('account-last-active')!.textContent).toBe('Keep at least one active account.')
   })
@@ -657,7 +657,7 @@ describe('Accounts: add, edit, archive, restore', () => {
   it("the database's refusal is shown in plain words", async () => {
     const repo = new FakeRepository()
     await mountApp({ path: '/accounts', repo })
-    await click(document.querySelector('[data-account-id="acc-cash"]'))
+    await click(byTestId('edit-account-acc-cash'))
     // The phone archived the other two meanwhile.
     repo.accounts = repo.accounts.map((a) => ({ ...a, archived: a.id !== 'acc-cash' }))
     await click(byTestId('account-archive'))

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// This month against last month (get_month_totals) and spending by category
-// (get_month_comparison): the phone's Dashboard, laid out for a wide screen.
-// Numbers come from Postgres; the browser only draws them.
+// This month against last month (get_month_totals), spending by category
+// (get_month_comparison) and the bills that are overdue or due within a week
+// (get_bill_schedule): the phone's Dashboard, laid out for a wide screen.
+// Numbers come from Postgres; the browser only draws them. The month is kept
+// in the URL (?month=yyyy-mm), so Back and F5 come back to it.
 import Button from 'primevue/button'
 import { computed, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ChangeCell from '@/components/ChangeCell.vue'
 import DonutChart from '@/components/DonutChart.vue'
@@ -12,21 +14,36 @@ import LoadError from '@/components/LoadError.vue'
 import MonthSwitcher from '@/components/MonthSwitcher.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
 import { useApp } from '@/data/appContext'
+import { billStatusLabel, billStatusLook } from '@/lib/bills'
 import { UNCATEGORIZED_LOOK, categoryIconKey, readableTextColor } from '@/lib/categoryStyle'
-import { compareMonths, monthKey, monthLabel, monthOf } from '@/lib/dates'
+import { compareMonths, formatDateIndian, monthFromQuery, monthKey, monthLabel, monthOf, type YearMonth } from '@/lib/dates'
 import { formatRupees, formatRupeesCompact } from '@/lib/money'
 import type { Category } from '@/lib/models'
 import { EXPENSE_COLOR, INCOME_COLOR } from '@/lib/theme'
 
 const app = useApp()
+const route = useRoute()
 const router = useRouter()
 
 const currentMonth = computed(() => monthOf(app.today.value))
-const month = ref(currentMonth.value)
+const month = ref<YearMonth>(monthFromQuery(route.query.month, currentMonth.value) ?? currentMonth.value)
 // Midnight on the last day of the month: follow along if showing "this month".
 watch(currentMonth, (now, before) => {
   if (compareMonths(month.value, before) === 0) month.value = now
 })
+// In the URL only when it isn't this month, so /dashboard is always "now".
+watch(month, (m) => {
+  const query = compareMonths(m, currentMonth.value) === 0 ? {} : { month: monthKey(m) }
+  void router.replace({ query })
+})
+// The sidebar link (no month) while a past month is open: back to this month.
+watch(
+  () => route.query.month,
+  (q) => {
+    const m = monthFromQuery(q, currentMonth.value) ?? currentMonth.value
+    if (compareMonths(m, month.value) !== 0) month.value = m
+  },
+)
 
 const totals = app.liveQuery(['transactions'], () => app.repo.fetchMonthTotals(month.value), () => monthKey(month.value))
 // Category names and colours are joined in the SQL, so a rename re-fetches too.
@@ -37,6 +54,11 @@ const comparison = app.liveQuery(
 )
 
 const categoriesById = computed(() => new Map((app.categories.data.value ?? []).map((c) => [c.id, c])))
+
+// Bills that need attention now (whatever month is shown): overdue, due
+// today or within 7 days. Status depends on today, so re-fetch when it changes.
+const bills = app.liveQuery(['recurring_bills'], () => app.repo.fetchBills(), () => app.today.value)
+const billsDue = computed(() => (bills.data.value ?? []).filter((b) => b.status !== 'upcoming'))
 
 interface BreakdownRow {
   key: string
@@ -79,6 +101,7 @@ function share(paise: number) {
 }
 
 const t = computed(() => totals.data.value)
+const isThisMonth = computed(() => compareMonths(month.value, currentMonth.value) === 0)
 
 function openUncategorized() {
   void router.push({ path: '/transactions', query: { month: monthKey(month.value), category: 'uncategorized' } })
@@ -107,7 +130,18 @@ function openUncategorized() {
     <div class="grid items-start gap-3 xl:grid-cols-[minmax(22rem,30rem)_1fr]">
       <div class="flex flex-col gap-3">
         <section class="card p-3" data-testid="month-totals">
-          <h2 class="card-title mb-2">{{ monthLabel(month) }}</h2>
+          <div class="mb-2 flex flex-wrap items-end gap-x-4 gap-y-1">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-700">Spent {{ isThisMonth ? 'this month' : `in ${monthLabel(month)}` }}</h2>
+              <div class="text-4xl leading-tight font-bold tabular-nums" :style="{ color: EXPENSE_COLOR }" data-testid="spent-headline">
+                {{ t ? formatRupees(t.expensePaise) : '…' }}
+              </div>
+            </div>
+            <div v-if="t" class="pb-1 text-sm text-slate-700">
+              <ChangeCell :now="t.expensePaise" :before="t.lastExpensePaise" /> against last month
+              ({{ formatRupeesCompact(t.lastExpensePaise) }})
+            </div>
+          </div>
           <LoadError v-if="totals.error.value && !t" compact :error="totals.error.value" what="Couldn't load totals." @retry="totals.refresh()" />
           <table class="dense-table">
             <thead>
@@ -121,19 +155,19 @@ function openUncategorized() {
             <tbody>
               <tr>
                 <td class="font-medium">Spent</td>
-                <td class="num text-lg font-semibold" :style="{ color: EXPENSE_COLOR }" data-testid="spent-now">{{ t ? formatRupees(t.expensePaise) : '…' }}</td>
+                <td class="num font-semibold" :style="{ color: EXPENSE_COLOR }" data-testid="spent-now">{{ t ? formatRupees(t.expensePaise) : '…' }}</td>
                 <td class="num text-slate-600">{{ t ? formatRupeesCompact(t.lastExpensePaise) : '' }}</td>
                 <td class="num"><ChangeCell v-if="t" :now="t.expensePaise" :before="t.lastExpensePaise" /></td>
               </tr>
               <tr>
                 <td class="font-medium">Income</td>
-                <td class="num text-lg font-semibold" :style="{ color: INCOME_COLOR }">{{ t ? formatRupees(t.incomePaise) : '…' }}</td>
+                <td class="num font-semibold" :style="{ color: INCOME_COLOR }">{{ t ? formatRupees(t.incomePaise) : '…' }}</td>
                 <td class="num text-slate-600">{{ t ? formatRupeesCompact(t.lastIncomePaise) : '' }}</td>
                 <td class="num"><ChangeCell v-if="t" :now="t.incomePaise" :before="t.lastIncomePaise" up-is-good /></td>
               </tr>
               <tr>
                 <td class="font-semibold">Net</td>
-                <td class="num text-lg font-semibold">{{ t ? formatRupees(t.incomePaise - t.expensePaise) : '…' }}</td>
+                <td class="num font-semibold">{{ t ? formatRupees(t.incomePaise - t.expensePaise) : '…' }}</td>
                 <td class="num text-slate-600">{{ t ? formatRupeesCompact(t.lastIncomePaise - t.lastExpensePaise) : '' }}</td>
                 <td></td>
               </tr>
@@ -155,6 +189,39 @@ function openUncategorized() {
           </span>
           <AppIcon name="chevron_right" :size="24" class="ml-auto text-slate-600" />
         </button>
+
+        <section v-if="bills.error.value && !bills.data.value" class="card p-3" data-testid="bills-due">
+          <h2 class="card-title mb-2">Bills</h2>
+          <LoadError compact :error="bills.error.value" what="Couldn't load bills." @retry="bills.refresh()" />
+        </section>
+        <section v-else-if="billsDue.length" class="card p-3" data-testid="bills-due">
+          <div class="mb-1 flex items-baseline gap-2">
+            <h2 class="card-title">Bills to pay</h2>
+            <span class="text-sm text-slate-600">overdue or due within 7 days</span>
+            <RouterLink to="/bills" class="ml-auto text-sm font-medium text-primary hover:underline" data-testid="bills-due-link">
+              All bills
+            </RouterLink>
+          </div>
+          <table class="dense-table">
+            <tbody>
+              <tr v-for="b in billsDue" :key="b.id" :data-bill-due="b.id">
+                <td>
+                  <span
+                    class="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold whitespace-nowrap"
+                    :style="{ color: billStatusLook(b.status).fg, background: billStatusLook(b.status).bg }"
+                  >
+                    <AppIcon :name="billStatusLook(b.status).icon" :size="17" /> {{ billStatusLabel(b) }}
+                  </span>
+                </td>
+                <td class="w-full">
+                  <RouterLink to="/bills" class="font-medium hover:underline">{{ b.name }}</RouterLink>
+                </td>
+                <td class="whitespace-nowrap text-slate-700">{{ formatDateIndian(b.nextDueDate) }}</td>
+                <td class="num font-semibold">{{ formatRupeesCompact(b.amountPaise) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </div>
 
       <section class="card p-3" data-testid="category-breakdown">

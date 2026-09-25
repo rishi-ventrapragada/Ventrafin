@@ -5,7 +5,6 @@
 // (ARCHITECTURE.md § 6): reminders pop up on the phone.
 import Button from 'primevue/button'
 import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref } from 'vue'
 import AccountAvatar from '@/components/AccountAvatar.vue'
 import AppIcon from '@/components/AppIcon.vue'
@@ -14,6 +13,7 @@ import IconCircle from '@/components/IconCircle.vue'
 import LoadError from '@/components/LoadError.vue'
 import MarkPaidDialog from '@/components/MarkPaidDialog.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { billStatusLabel, billStatusLook, dueDayLabel } from '@/lib/bills'
 import { formatDateIndian, monthLabel, previousMonth } from '@/lib/dates'
@@ -23,7 +23,7 @@ import { BILL_KINDS, formatTimeOfDay, type Bill, type MarkPaidResult } from '@/l
 import { TRANSFER_COLOR, UNCATEGORIZED_INK } from '@/lib/theme'
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const confirmDialog = useConfirm()
 
 // Status depends on today: re-fetch when the date ticks over.
@@ -42,22 +42,19 @@ const editing = ref<Bill | null | undefined>(undefined)
 const paying = ref<Bill | null>(null)
 
 function onSaved(name: string) {
-  toast.add({ severity: 'success', summary: editing.value ? `Saved ${name}` : `Added ${name}`, life: 3000 })
+  notify.success(editing.value ? `Saved ${name}` : `Added ${name}`)
   editing.value = undefined
 }
 
 function onPaid(bill: Bill, result: MarkPaidResult) {
   paying.value = null
   if (result.alreadyPaid) {
-    toast.add({ severity: 'info', summary: `${bill.name} was already marked paid for ${monthLabel(result.paidThroughMonth)}.`, life: 4000 })
+    notify.info(`${bill.name} was already marked paid for ${monthLabel(result.paidThroughMonth)}.`)
     return
   }
   const logged = result.transactionId !== null
-  toast.add({
-    severity: 'success',
-    summary: `${bill.name} marked paid for ${monthLabel(result.paidThroughMonth)}`,
+  notify.success(`${bill.name} marked paid for ${monthLabel(result.paidThroughMonth)}`, {
     detail: logged ? 'The payment was added to Transactions.' : undefined,
-    life: 4000,
   })
 }
 
@@ -67,7 +64,7 @@ async function toggleReminder(b: Bill) {
     await app.repo.setBillReminder(b.id, !b.reminderEnabled)
     app.bump(['recurring_bills'])
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Not changed', detail: describeError(e), life: 5000 })
+    notify.error('Not changed', describeError(e))
   }
 }
 
@@ -86,9 +83,9 @@ function markUnpaid(b: Bill) {
         app.requireOnline()
         await app.repo.setBillPaidThrough(b.id, previousMonth(b.paidThroughMonth))
         app.bump(['recurring_bills'])
-        toast.add({ severity: 'success', summary: `Marked ${month} unpaid for ${b.name}`, life: 3000 })
+        notify.success(`Marked ${month} unpaid for ${b.name}`)
       } catch (e) {
-        toast.add({ severity: 'error', summary: 'Not changed', detail: describeError(e), life: 5000 })
+        notify.error('Not changed', describeError(e))
       }
     },
   })
@@ -108,9 +105,9 @@ function remove(b: Bill) {
         app.requireOnline()
         await app.repo.deleteBill(b.id)
         app.bump(['recurring_bills'])
-        toast.add({ severity: 'success', summary: `Deleted ${b.name}`, life: 3000 })
+        notify.success(`Deleted ${b.name}`)
       } catch (e) {
-        toast.add({ severity: 'error', summary: 'Not deleted', detail: describeError(e), life: 5000 })
+        notify.error('Not deleted', describeError(e))
       }
     },
   })

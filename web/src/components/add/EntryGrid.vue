@@ -205,7 +205,9 @@ defineExpose({
 </script>
 
 <template>
-  <div class="overflow-x-auto rounded-md border border-slate-300 bg-white">
+  <!-- The scroll container both ways, no taller than the window: the header row
+       (position: sticky) stays in view after pasting a long list. -->
+  <div class="grid-scroller overflow-auto rounded-md border border-slate-300 bg-white" data-testid="grid-scroller">
     <table ref="table" class="entry-grid" aria-label="New transactions">
       <colgroup>
         <col style="width: 2.2rem" />
@@ -309,7 +311,7 @@ defineExpose({
             </ComboInput>
           </td>
 
-          <td :class="cellClass(i, 'category')" :title="cellTitle(i, 'category')">
+          <td :class="[cellClass(i, 'category'), { 'cell-na': typeOf(row) === 'transfer' }]" :title="cellTitle(i, 'category')">
             <ComboInput
               :model-value="typeOf(row) === 'transfer' ? '' : row.raw.category"
               :options="categoryOpts(row)"
@@ -361,7 +363,7 @@ defineExpose({
             </ComboInput>
           </td>
 
-          <td :class="cellClass(i, 'toAccount')" :title="cellTitle(i, 'toAccount')">
+          <td :class="[cellClass(i, 'toAccount'), { 'cell-na': typeOf(row) !== 'transfer' }]" :title="cellTitle(i, 'toAccount')">
             <ComboInput
               :model-value="typeOf(row) === 'transfer' ? row.raw.toAccount : ''"
               :options="accountOpts"
@@ -406,14 +408,14 @@ defineExpose({
             <AppIcon v-if="statusOf(i) === 'ok'" name="check_circle" :size="21" class="text-income" label="Ready" />
             <AppIcon v-else-if="statusOf(i) === 'warn'" name="warning" filled :size="21" class="text-uncat" label="Ready, with a note" />
             <AppIcon v-else-if="statusOf(i) === 'error'" name="error" filled :size="21" class="text-expense" label="Needs fixing" />
-            <span v-else-if="statusOf(i) === 'pending'" class="text-slate-500">•</span>
+            <span v-else-if="statusOf(i) === 'pending'" class="text-slate-600">•</span>
           </td>
 
           <td class="text-center">
             <button
               type="button"
               tabindex="-1"
-              class="rounded p-0.5 text-slate-500 hover:bg-red-50 hover:text-expense"
+              class="rounded p-0.5 text-slate-600 hover:bg-red-50 hover:text-expense"
               :aria-label="`Remove row ${i + 1}`"
               :disabled="disabled"
               @click="emit('removeRow', i)"
@@ -428,6 +430,11 @@ defineExpose({
 </template>
 
 <style scoped>
+.grid-scroller {
+  /* The Add page's title and buttons above, the keyboard hints below. */
+  max-height: calc(100vh - 11rem);
+  min-height: 12rem;
+}
 .entry-grid {
   width: 100%;
   /* Below this the description column would be crushed: scroll instead. */
@@ -478,6 +485,11 @@ defineExpose({
 /* Lighter than typed text, but readable (slate-500, 4.8:1). */
 .entry-grid input::placeholder {
   color: #64748b;
+}
+/* Not used for this row's type (Category on a transfer, To account otherwise):
+   grey, and its "—" is slate-600 (ComboInput), 6.9:1 on it; not faded. */
+.entry-grid td.cell-na {
+  background: #f1f5f9;
 }
 .entry-grid .cell-error {
   background: #fdecea;

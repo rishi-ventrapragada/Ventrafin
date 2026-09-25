@@ -5,15 +5,15 @@
 // browser can't do it or the server has it switched off (DECISIONS.md D26).
 import Button from 'primevue/button'
 import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { classifyPasskeyError, describePasskeyError, type PasskeyInfo, type PasskeySupport } from '@/data/passkeys'
 import { formatDateIndian, indiaToday } from '@/lib/dates'
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const confirm = useConfirm()
 
 const support = ref<PasskeySupport | null>(null)
@@ -23,7 +23,6 @@ const listError = ref<string | null>(null)
 const busy = ref(false)
 
 const available = computed(() => support.value !== null && support.value !== 'none' && serverOn.value === true)
-const name = computed(() => (support.value === 'platform' ? 'Windows Hello' : 'a passkey'))
 
 async function load() {
   listError.value = null
@@ -43,27 +42,20 @@ onMounted(async () => {
 
 async function register() {
   if (!app.online.value) {
-    toast.add({ severity: 'warn', summary: 'Offline', detail: "There's no internet connection.", life: 4000 })
+    notify.warn('Offline', { detail: "There's no internet connection." })
     return
   }
   busy.value = true
   try {
     await app.passkeys.register()
-    toast.add({
-      severity: 'success',
-      summary: `${support.value === 'platform' ? 'Windows Hello' : 'Passkey'} is set up`,
+    notify.success('Windows Hello sign-in is set up', {
       detail: 'Next time, choose "Sign in with Windows Hello" on the sign-in page.',
       life: 6000,
     })
     await load()
   } catch (e) {
-    const cancelled = classifyPasskeyError(e) === 'cancelled'
-    toast.add({
-      severity: cancelled ? 'info' : 'error',
-      summary: cancelled ? 'Not set up' : "Couldn't set up Windows Hello",
-      detail: describePasskeyError(e, 'register'),
-      life: 6000,
-    })
+    if (classifyPasskeyError(e) === 'cancelled') notify.info('Not set up', { detail: describePasskeyError(e, 'register') })
+    else notify.error("Couldn't set up Windows Hello sign-in", describePasskeyError(e, 'register'))
   } finally {
     busy.value = false
   }
@@ -71,7 +63,7 @@ async function register() {
 
 function remove(p: PasskeyInfo) {
   confirm.require({
-    header: 'Remove this passkey?',
+    header: 'Remove Windows Hello sign-in?',
     message: `"${p.name}" will no longer sign you in. Google sign-in is not affected. You can set it up again at any time.`,
     acceptLabel: 'Remove',
     rejectLabel: 'Cancel',
@@ -83,7 +75,7 @@ function remove(p: PasskeyInfo) {
         await app.passkeys.remove(p.id)
         await load()
       } catch (e) {
-        toast.add({ severity: 'error', summary: 'Not removed', detail: describePasskeyError(e, 'register'), life: 5000 })
+        notify.error('Not removed', describePasskeyError(e, 'register'))
       }
     },
   })
@@ -115,14 +107,14 @@ function when(ts: string): string {
       </div>
       <template v-else>
         <div v-if="support === 'roaming'" class="mt-2 text-sm text-slate-700">
-          Windows Hello isn't set up on this PC (Windows Settings › Accounts › Sign-in options). You can still use a phone
-          or a security key as a passkey.
+          Windows Hello isn't set up on this PC (Windows Settings › Accounts › Sign-in options). Windows Hello sign-in can
+          still use a phone or a security key.
         </div>
         <p v-if="listError" class="mt-2 text-sm text-expense" role="alert">{{ listError }}</p>
         <table v-if="passkeys && passkeys.length" class="dense-table mt-2 max-w-xl" data-testid="passkey-list">
           <thead>
             <tr>
-              <th>Passkey</th>
+              <th>Windows Hello sign-in</th>
               <th>Set up</th>
               <th>Last used</th>
               <th></th>
@@ -144,7 +136,7 @@ function when(ts: string): string {
     </div>
     <Button
       v-if="available"
-      :label="`Set up ${name}`"
+      label="Set up Windows Hello sign-in"
       :loading="busy"
       severity="secondary"
       outlined

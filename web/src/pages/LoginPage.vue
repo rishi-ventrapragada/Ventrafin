@@ -97,7 +97,7 @@ async function signInWithPasskey() {
         outlined
         :loading="passkeyBusy"
         :disabled="busy"
-        :label="passkey === 'platform' ? 'Sign in with Windows Hello' : 'Sign in with a passkey'"
+        label="Sign in with Windows Hello"
         data-testid="passkey-sign-in"
         @click="signInWithPasskey"
       >

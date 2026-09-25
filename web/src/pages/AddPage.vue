@@ -8,7 +8,6 @@
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -18,6 +17,7 @@ import PasteDialog from '@/components/add/PasteDialog.vue'
 import SavedPanel from '@/components/add/SavedPanel.vue'
 import { newRowKey, type GridRow } from '@/components/add/gridRow'
 import { DISCARD_CHANGES, useAsk } from '@/components/useAsk'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { takeHandedOffRows } from '@/data/gridHandoff'
 import { formatDateIndian } from '@/lib/dates'
@@ -43,7 +43,7 @@ const INITIAL_ROWS = 8
 const BLANK_TAIL = 3
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const confirm = useConfirm()
 const { ask } = useAsk()
 
@@ -174,11 +174,11 @@ async function save(only?: ReadonlySet<string>): Promise<boolean> {
   const ready = candidates.filter((x) => x.p.draft)
   const broken = candidates.length - ready.length
   if (ready.length === 0) {
-    toast.add(
-      broken
-        ? { severity: 'warn', summary: 'Nothing saved', detail: `${broken} row${broken === 1 ? ' needs' : 's need'} fixing first. The red cells say why.`, life: 6000 }
-        : { severity: 'info', summary: 'Nothing to save yet', detail: 'Type or paste some rows first.', life: 4000 },
-    )
+    if (broken) {
+      notify.warn('Nothing saved', { detail: `${broken} row${broken === 1 ? ' needs' : 's need'} fixing first. The red cells say why.` })
+    } else {
+      notify.info('Nothing to save yet', { detail: 'Type or paste some rows first.' })
+    }
     return false
   }
 
@@ -214,16 +214,14 @@ async function save(only?: ReadonlySet<string>): Promise<boolean> {
   ensureRows()
 
   const auto = saved.filter((t) => t.autoCategorized).length
-  toast.add({
-    severity: 'success',
-    summary: `Saved ${saved.length} transaction${saved.length === 1 ? '' : 's'}`,
-    detail: [
-      auto ? `${auto} categorized automatically.` : '',
-      broken ? `${broken} row${broken === 1 ? '' : 's'} still need${broken === 1 ? 's' : ''} fixing.` : '',
-    ]
-      .filter(Boolean)
-      .join(' ') || undefined,
-    life: 4000,
+  notify.success(`Saved ${saved.length} transaction${saved.length === 1 ? '' : 's'}`, {
+    detail:
+      [
+        auto ? `${auto} categorized automatically.` : '',
+        broken ? `${broken} row${broken === 1 ? '' : 's'} still need${broken === 1 ? 's' : ''} fixing.` : '',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined,
   })
   if (!only && broken === 0) void grid.value?.focusFirstEmpty()
   return true
@@ -266,7 +264,7 @@ function pastedToGrid(raws: RawRow[]) {
   placeInGrid(newRows)
   newRows.forEach((r) => touched.value.add(r.key))
   pasteVisible.value = false
-  toast.add({ severity: 'info', summary: `${newRows.length} rows added to the grid`, detail: 'Check them, then Save.', life: 4000 })
+  notify.info(`${newRows.length} rows added to the grid`, { detail: 'Check them, then Save.' })
 }
 
 // ------------------------------------------------------------ misc
@@ -325,9 +323,7 @@ onMounted(() => {
     const newRows = handed.map((raw) => ({ key: newRowKey(), raw }))
     placeInGrid(newRows)
     newRows.forEach((r) => touched.value.add(r.key))
-    toast.add({
-      severity: 'info',
-      summary: `${newRows.length} imported row${newRows.length === 1 ? '' : 's'} to fix`,
+    notify.info(`${newRows.length} imported row${newRows.length === 1 ? '' : 's'} to fix`, {
       detail: 'The red cells say what to change. Then Save.',
       life: 6000,
     })

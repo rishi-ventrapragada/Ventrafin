@@ -5,8 +5,10 @@
 // them. Every total is computed in Postgres (get_month_totals,
 // get_month_comparison, get_monthly_totals, get_monthly_category_totals);
 // the browser only lays them out. Same sections as the phone's Reports.
+// The month and the span are kept in the URL (?month=yyyy-mm&span=12), so
+// Back and F5 come back to them.
 import { computed, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BarChart from '@/components/BarChart.vue'
 import ChangeCell from '@/components/ChangeCell.vue'
 import LoadError from '@/components/LoadError.vue'
@@ -14,20 +16,49 @@ import MonthSwitcher from '@/components/MonthSwitcher.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
 import { useApp } from '@/data/appContext'
 import { UNCATEGORIZED_LOOK, readableTextColor } from '@/lib/categoryStyle'
-import { MONTH_SHORT, compareMonths, monthKey, monthLabel, monthOf, monthShortLabel, type YearMonth } from '@/lib/dates'
+import { MONTH_SHORT, compareMonths, monthFromQuery, monthKey, monthLabel, monthOf, monthShortLabel, type YearMonth } from '@/lib/dates'
 import { formatRupeesCompact } from '@/lib/money'
 import type { CategoryKind } from '@/lib/models'
-import { buildCategoryTrend, monthsEnding, savedPercent, totalsFor } from '@/lib/reports'
+import {
+  SUMMARY_CAPTION,
+  TREND_SPANS,
+  buildCategoryTrend,
+  monthsEnding,
+  savedPercent,
+  spanFromQuery,
+  totalsFor,
+  type TrendSpan,
+} from '@/lib/reports'
 import { EXPENSE_COLOR, INCOME_COLOR } from '@/lib/theme'
 
 const app = useApp()
+const route = useRoute()
+const router = useRouter()
 
 const currentMonth = computed(() => monthOf(app.today.value))
-const month = ref(currentMonth.value)
+const month = ref<YearMonth>(monthFromQuery(route.query.month, currentMonth.value) ?? currentMonth.value)
 watch(currentMonth, (now, before) => {
   if (compareMonths(month.value, before) === 0) month.value = now
 })
-const span = ref<6 | 12>(6)
+const span = ref<TrendSpan>(spanFromQuery(route.query.span))
+
+// In the URL only when not the default (this month, 6 months).
+watch([month, span], ([m, n]) => {
+  const query: Record<string, string> = {}
+  if (compareMonths(m, currentMonth.value) !== 0) query.month = monthKey(m)
+  if (n !== 6) query.span = String(n)
+  void router.replace({ query })
+})
+// The sidebar link (no query) while this page is open: back to the defaults.
+watch(
+  () => route.query,
+  (q) => {
+    const m = monthFromQuery(q.month, currentMonth.value) ?? currentMonth.value
+    if (compareMonths(m, month.value) !== 0) month.value = m
+    const n = spanFromQuery(q.span)
+    if (n !== span.value) span.value = n
+  },
+)
 const months = computed(() => monthsEnding(month.value, span.value))
 const rangeKey = () => `${monthKey(months.value[0]!)}..${monthKey(month.value)}`
 
@@ -164,7 +195,8 @@ const last = computed(() => months.value.length - 1)
               </tr>
             </tbody>
           </table>
-          <p v-if="counts" class="mt-2 text-sm text-slate-600">
+          <p class="mt-2 text-sm text-slate-600" data-testid="summary-caption">{{ SUMMARY_CAPTION }}</p>
+          <p v-if="counts" class="mt-1 text-sm text-slate-600">
             {{ counts.expenseCount }} expenses and {{ counts.incomeCount }} income entries<template v-if="counts.uncategorizedCount > 0">,
               {{ counts.uncategorizedCount }} uncategorized</template>. Transfers between your accounts are not counted.
           </p>
@@ -268,7 +300,7 @@ const last = computed(() => months.value.length - 1)
       <span class="text-slate-600">{{ monthShortLabel(months[0]!) }} – {{ monthShortLabel(month) }}</span>
       <div class="inline-flex overflow-hidden rounded-md border border-slate-300 bg-white" role="group" aria-label="Months shown">
         <button
-          v-for="n in [6, 12] as const"
+          v-for="n in TREND_SPANS"
           :key="n"
           type="button"
           class="px-3 py-1 text-dense"
@@ -391,7 +423,7 @@ const last = computed(() => months.value.length - 1)
                       {{ r.name }}
                     </span>
                   </td>
-                  <td v-for="(v, i) in r.perMonth" :key="i" class="num" :class="v === 0 ? 'text-slate-500' : ''">
+                  <td v-for="(v, i) in r.perMonth" :key="i" class="num" :class="v === 0 ? 'text-slate-600' : ''">
                     {{ v === 0 ? '–' : formatRupeesCompact(v) }}
                   </td>
                   <td class="num font-semibold">{{ formatRupeesCompact(r.total) }}</td>

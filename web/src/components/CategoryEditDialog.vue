@@ -5,7 +5,6 @@
 // Escape asks before throwing away a change.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref, useId, watch } from 'vue'
 import { useApp } from '@/data/appContext'
 import { submitOnEnter } from '@/directives'
@@ -15,12 +14,13 @@ import { CATEGORY_NAME_MAX, categoryNameError, type Category } from '@/lib/model
 import AppIcon from './AppIcon.vue'
 import IconCircle from './IconCircle.vue'
 import { useGuardedClose } from './useAsk'
+import { useNotify } from './useNotify'
 
 const props = defineProps<{ category: Category | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const formId = useId()
 
 const name = ref('')
@@ -93,11 +93,7 @@ async function save() {
   }
   app.bump(['categories'])
   const newName = name.value.trim()
-  toast.add({
-    severity: 'success',
-    summary: newName === c.name ? `${c.name} updated` : `${c.name} renamed to ${newName}`,
-    life: 3000,
-  })
+  notify.success(newName === c.name ? `${c.name} updated` : `${c.name} renamed to ${newName}`)
   emit('close')
 }
 
@@ -131,7 +127,7 @@ async function setArchived(archived: boolean) {
     saving.value = false
   }
   app.bump(['categories'])
-  toast.add({ severity: 'success', summary: `${archived ? 'Archived' : 'Restored'} ${c.name}`, life: 3000 })
+  notify.success(`${archived ? 'Archived' : 'Restored'} ${c.name}`)
   emit('close')
 }
 </script>

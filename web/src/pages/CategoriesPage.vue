@@ -4,20 +4,20 @@
 // wait at the bottom with a Restore button. Same as the phone. Updates live,
 // e.g. when auto-categorization creates one.
 import Button from 'primevue/button'
-import { useToast } from 'primevue/usetoast'
 import { computed, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import CategoryAddDialog from '@/components/CategoryAddDialog.vue'
 import CategoryEditDialog from '@/components/CategoryEditDialog.vue'
 import LoadError from '@/components/LoadError.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
+import { useNotify } from '@/components/useNotify'
 import { useApp } from '@/data/appContext'
 import { CATEGORY_ICON_LABELS, readableTextColor } from '@/lib/categoryStyle'
 import { describeError } from '@/lib/errors'
 import { sortByName, type Category, type CategoryKind } from '@/lib/models'
 
 const app = useApp()
-const toast = useToast()
+const notify = useNotify()
 const editing = ref<Category | null>(null)
 /** The kind a new category starts as (the section it was added from); null = closed. */
 const adding = ref<CategoryKind | null>(null)
@@ -41,9 +41,9 @@ async function restore(c: Category) {
     app.requireOnline()
     await app.repo.setCategoryArchived(c.id, false)
     app.bump(['categories'])
-    toast.add({ severity: 'success', summary: `Restored ${c.name}`, life: 3000 })
+    notify.success(`Restored ${c.name}`)
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Not restored', detail: describeError(e), life: 5000 })
+    notify.error('Not restored', describeError(e))
   } finally {
     restoring.value = null
   }

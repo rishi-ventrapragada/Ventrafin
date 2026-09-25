@@ -369,6 +369,36 @@ export function monthlyCategoryTotalFromRow(
 }
 
 // ---------------------------------------------------------------------------
+// Per-account totals for a month
+// ---------------------------------------------------------------------------
+
+/** One row of `get_account_totals()`: an account's month (archived accounts included). */
+export interface AccountTotals {
+  accountId: string
+  month: YearMonth
+  expensePaise: number
+  incomePaise: number
+  /** Transfers from this account to another one. */
+  transferOutPaise: number
+  /** Transfers into this account. */
+  transferInPaise: number
+  /** Entries touching the account (either side of a transfer counts). */
+  entryCount: number
+}
+
+export function accountTotalsFromRow(r: Database['public']['Functions']['get_account_totals']['Returns'][number]): AccountTotals {
+  return {
+    accountId: r.account_id,
+    month: monthOf(r.month),
+    expensePaise: asPaise(r.expense_paise),
+    incomePaise: asPaise(r.income_paise),
+    transferOutPaise: asPaise(r.transfer_out_paise),
+    transferInPaise: asPaise(r.transfer_in_paise),
+    entryCount: Number(r.entry_count),
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Profile (theme and reminder settings, shared with the phone)
 // ---------------------------------------------------------------------------
 
