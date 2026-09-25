@@ -57,6 +57,16 @@ The hosted project is managed through the **Supabase MCP server** (`.mcp.json`, 
 
 Follow the phase order in `PRD.md` § Build Phases. Each phase should leave the app in a working, demoable state before moving to the next. Don't jump ahead to later-phase features (e.g., don't build reminders while still in the schema phase).
 
+## Git workflow
+
+Claude handles git itself: commit and push after finishing each increment or fix, without waiting for the human to run the commands.
+
+- **One feature branch per increment or fix**, not directly on `main` (as done for `increment-3-web-core`).
+- **After finishing and testing a change, commit it and push the branch to `origin`.** Always scan the staged diff for secrets first (service_role key, database password, OAuth client secrets, `.env` files).
+- **Only merge into `main` when the human explicitly says to merge.** Never merge automatically; the human may want to test first.
+- **When told to merge**, do it yourself: `git checkout main`, `git pull`, `git merge --ff-only <branch>`, `git push`. If it's not a clean fast-forward, stop and tell the human rather than resolving conflicts yourself.
+- **At the end of each turn, state clearly** what was committed, to which branch, and whether `main` was updated.
+
 ## Stack quick reference
 
 | Layer | Choice |
