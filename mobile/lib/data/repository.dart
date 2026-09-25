@@ -36,8 +36,10 @@ abstract interface class FinanceRepository {
   /// `get_month_comparison(p_month)`: per category, this vs last month.
   Future<List<CategoryComparison>> fetchMonthComparison(YearMonth month);
 
-  /// Changes a category's icon (a curated key) and colour (`#RRGGBB`).
-  Future<Category> updateCategoryStyle(String id, {required String iconKey, required String colorHex});
+  /// Renames a category and sets its icon (a curated key) and colour
+  /// (`#RRGGBB`). The database keeps a renamed built-in category linked to
+  /// its keywords, so auto-categorization follows the rename.
+  Future<Category> updateCategory(String id, {required String name, required String iconKey, required String colorHex});
 
   /// Inserts with a client-generated [id]. Retrying with the same id after an
   /// ambiguous failure (e.g. a timeout) never creates a duplicate. Returns

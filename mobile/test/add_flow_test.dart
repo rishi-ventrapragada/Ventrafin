@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ventrafin/core/india_time.dart';
@@ -212,6 +213,39 @@ void main() {
     expect(find.text('Bank'), findsOneWidget);
     expect(chipSelected(tester, 'card'), isTrue);
   });
+
+  // The test font draws every glyph as a full square, so labels are wider
+  // here than on a phone: 412 and 360 dp exercise the stacked layout, 640 dp
+  // the side-by-side one.
+  for (final (width, scale) in [(412.0, 1.0), (360.0, 1.0), (412.0, 1.3), (360.0, 1.3), (640.0, 1.0)]) {
+    testWidgets('save buttons keep their labels on one line (${width.toInt()} dp wide, text ×$scale)', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpWithFakes(tester, const AddScreen(), surfaceSize: Size(width, 915));
+
+      for (final label in ['Save & close', 'Save & add another']) {
+        final finder = find.text(label);
+        await tester.scrollUntilVisible(finder, 200, scrollable: find.byType(Scrollable).first);
+        final paragraph = tester.renderObject<RenderParagraph>(finder);
+        final oneLine = TextPainter(
+          text: paragraph.text,
+          textDirection: TextDirection.ltr,
+          textScaler: paragraph.textScaler,
+        )..layout();
+        expect(paragraph.size.height, closeTo(oneLine.height, 0.5), reason: '"$label" wrapped onto more than one line');
+        expect(paragraph.size.width, greaterThanOrEqualTo(oneLine.width - 0.5), reason: '"$label" was cut off');
+        oneLine.dispose();
+      }
+
+      final closeTop = tester.getTopLeft(find.byKey(const Key('entry-save-close'))).dy;
+      final anotherTop = tester.getTopLeft(find.byKey(const Key('entry-save-another'))).dy;
+      if (width >= 640) {
+        expect(closeTop, anotherTop, reason: 'room for both: side by side');
+      } else {
+        expect(closeTop, greaterThan(anotherTop), reason: 'too narrow: stacked, primary action first');
+      }
+    });
+  }
 
   testWidgets('keypad: backspace, decimals and grouping', (tester) async {
     await pumpAddScreen(tester);

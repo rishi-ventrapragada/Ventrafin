@@ -515,27 +515,49 @@ class EntryFormState extends ConsumerState<EntryForm> {
         label: const Text('Save changes'),
       );
     }
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            key: const Key('entry-save-close'),
-            onPressed: _saving ? null : () => _save(addAnother: false),
-            child: const Text('Save & close'),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 2,
-          child: FilledButton.icon(
-            key: const Key('entry-save-another'),
-            onPressed: _saving ? null : () => _save(addAnother: true),
-            icon: _saving ? spinner : const Icon(Icons.playlist_add),
-            label: const Text('Save & add another'),
-          ),
-        ),
-      ],
+    const closeLabel = 'Save & close';
+    const anotherLabel = 'Save & add another';
+    final close = OutlinedButton(
+      key: const Key('entry-save-close'),
+      onPressed: _saving ? null : () => _save(addAnother: false),
+      child: const FittedBox(fit: BoxFit.scaleDown, child: Text(closeLabel, maxLines: 1, softWrap: false)),
     );
+    final another = FilledButton.icon(
+      key: const Key('entry-save-another'),
+      onPressed: _saving ? null : () => _save(addAnother: true),
+      icon: _saving ? spinner : const Icon(Icons.playlist_add),
+      label: const FittedBox(fit: BoxFit.scaleDown, child: Text(anotherLabel, maxLines: 1, softWrap: false)),
+    );
+    // Side by side when both labels fit on one line; on a narrow phone or
+    // with a large system font, stacked full width instead of wrapping.
+    // (Labels only shrink as a last resort, at extreme font sizes.)
+    return LayoutBuilder(builder: (context, constraints) {
+      final needed = _labelWidth(context, closeLabel) + _labelWidth(context, anotherLabel) + _kSaveButtonsChrome;
+      if (needed <= constraints.maxWidth) {
+        return Row(children: [close, const SizedBox(width: 8), Expanded(child: another)]);
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [another, const SizedBox(height: 6), close],
+      );
+    });
+  }
+
+  /// Horizontal space the two save buttons need besides their label text:
+  /// Material 3 padding (outlined 24+24, filled-with-icon 16+24), the 18 dp
+  /// icon and its 8 dp gap, and the 8 dp between the buttons.
+  static const double _kSaveButtonsChrome = 48 + 40 + 18 + 8 + 8;
+
+  double _labelWidth(BuildContext context, String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: Theme.of(context).textTheme.labelLarge),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
   }
 }
 

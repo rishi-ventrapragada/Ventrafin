@@ -48,8 +48,8 @@ class FakeRepository implements FinanceRepository {
   /// Every insert attempt's id, including failed ones.
   final attemptedIds = <String>[];
 
-  /// Category restyles, in order.
-  final styleUpdates = <({String id, String iconKey, String colorHex})>[];
+  /// Category edits (rename / restyle), in order.
+  final categoryUpdates = <({String id, String name, String iconKey, String colorHex})>[];
 
   Object? failNextInsertWith;
 
@@ -102,12 +102,13 @@ class FakeRepository implements FinanceRepository {
   Future<List<CategoryComparison>> fetchMonthComparison(YearMonth month) async => comparison;
 
   @override
-  Future<Category> updateCategoryStyle(String id, {required String iconKey, required String colorHex}) async {
-    styleUpdates.add((id: id, iconKey: iconKey, colorHex: colorHex));
+  Future<Category> updateCategory(String id,
+      {required String name, required String iconKey, required String colorHex}) async {
+    categoryUpdates.add((id: id, name: name, iconKey: iconKey, colorHex: colorHex));
     final old = categories.firstWhere((c) => c.id == id);
     final updated = Category(
       id: old.id,
-      name: old.name,
+      name: name.trim(),
       kind: old.kind,
       color: parseHexColor(colorHex),
       archived: old.archived,
@@ -156,15 +157,16 @@ Txn testTxn(
     );
 
 /// Pumps [home] inside the app theme with the fake repository and fixed
-/// clock on a 412×915 phone-sized surface.
+/// clock on a phone-sized surface (412×915 unless [surfaceSize] says otherwise).
 Future<(FakeRepository, SharedPreferences)> pumpWithFakes(
   WidgetTester tester,
   Widget home, {
   FakeRepository? repo,
   Map<String, Object> prefs = const {},
   bool online = true,
+  Size surfaceSize = const Size(412, 915),
 }) async {
-  await tester.binding.setSurfaceSize(const Size(412, 915));
+  await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues(prefs);
   final sharedPrefs = await SharedPreferences.getInstance();

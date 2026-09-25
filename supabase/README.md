@@ -17,6 +17,7 @@ Never change the schema through the dashboard. Add a new migration instead.
 | `…155214_enable_pgtap` | Installs pgTAP (in `extensions`) for the tests |
 | `…162343_realtime_categories_profiles` | Publishes `categories` and `profiles` too |
 | `…040030_category_icons` | `categories.icon` (curated Material Symbols keys), a curated palette, distinct built-in colours, and a trigger that fills in the default icon and colour. Backfills existing rows |
+| `…044748_category_builtin_link` | `categories.builtin_name`: a category keeps its built-in keywords when renamed ("Food" → "Khana" still gets Swiggy). Trigger-maintained; the categorizer uses it before the name (DECISIONS.md D18) |
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
 
@@ -38,7 +39,7 @@ The full rules are in the root `CLAUDE.md` ("Database changes via Supabase MCP")
 
 ## Tests (pgTAP, `tests/*.test.sql`)
 
-Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind.
+Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`06`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename.
 
 - **Normally, via the Supabase MCP (`execute_sql`).** `execute_sql` runs the whole script as one transaction and returns only the last statement's result. So send the file's statements with three changes:
   1. drop `begin;`

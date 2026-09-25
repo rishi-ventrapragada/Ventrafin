@@ -7,9 +7,9 @@ import '../../core/visual_badges.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 
-/// Categories with their icons and colours. Tap one to restyle it from the
-/// curated set. Updates live, e.g. when auto-categorization creates one.
-/// (Renaming and archiving come with the categorization phase.)
+/// Categories with their icons and colours. Tap one to rename it or restyle
+/// it from the curated set. Updates live, e.g. when auto-categorization
+/// creates one. (Adding and archiving come with the categorization phase.)
 class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
 
@@ -40,13 +40,14 @@ class CategoriesScreen extends ConsumerWidget {
                       ),
                     const Icon(Icons.edit_outlined, size: 20),
                   ]),
-                  onTap: () => showCategoryStyleEditor(context, c),
+                  onTap: () => showCategoryEditor(context, c),
                 ),
             ],
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Tap a category to change its icon and colour. '
-                  'Renaming, adding and archiving categories are coming in a later update.'),
+              child: Text('Tap a category to rename it or change its icon and colour. '
+                  'Renaming keeps its automatic matches: if Food becomes "Khana", Swiggy still goes there. '
+                  'Adding and archiving categories are coming in a later update.'),
             ),
           ]),
         AsyncValue(:final error?) => Center(child: Text('Could not load categories: ${describeError(error)}')),
@@ -59,34 +60,58 @@ class CategoriesScreen extends ConsumerWidget {
       cs.toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 }
 
-Future<void> showCategoryStyleEditor(BuildContext context, Category category) {
+Future<void> showCategoryEditor(BuildContext context, Category category) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (context) => CategoryStyleSheet(category: category),
+    builder: (context) => CategoryEditSheet(category: category),
   );
 }
 
-/// Pick an icon and a colour for one category; Save writes both.
-class CategoryStyleSheet extends ConsumerStatefulWidget {
-  const CategoryStyleSheet({super.key, required this.category});
+/// Rename one category and pick its icon and colour; Save writes all three.
+class CategoryEditSheet extends ConsumerStatefulWidget {
+  const CategoryEditSheet({super.key, required this.category});
 
   final Category category;
 
   @override
-  ConsumerState<CategoryStyleSheet> createState() => _CategoryStyleSheetState();
+  ConsumerState<CategoryEditSheet> createState() => _CategoryEditSheetState();
 }
 
-class _CategoryStyleSheetState extends ConsumerState<CategoryStyleSheet> {
+class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
+  late final _name = TextEditingController(text: widget.category.name);
   late String _iconKey = widget.category.iconKey;
   late String _colorHex = toHexColor(widget.category.color);
   bool _saving = false;
   String? _error;
 
-  bool get _changed => _iconKey != widget.category.iconKey || _colorHex != toHexColor(widget.category.color);
+  @override
+  void initState() {
+    super.initState();
+    _name.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  bool get _changed =>
+      _name.text.trim() != widget.category.name ||
+      _iconKey != widget.category.iconKey ||
+      _colorHex != toHexColor(widget.category.color);
+
+  String? get _nameError => categoryNameError(
+        _name.text,
+        kind: widget.category.kind,
+        existing: ref.read(categoriesProvider).value ?? const <Category>[],
+        exceptId: widget.category.id,
+      );
 
   Future<void> _save() async {
+    if (_nameError != null) return;
     if (!ref.read(isOnlineProvider)) {
       setState(() => _error = "There's no internet connection. Nothing was changed.");
       return;
@@ -96,7 +121,9 @@ class _CategoryStyleSheetState extends ConsumerState<CategoryStyleSheet> {
       _error = null;
     });
     try {
-      await ref.read(repositoryProvider).updateCategoryStyle(widget.category.id, iconKey: _iconKey, colorHex: _colorHex);
+      await ref
+          .read(repositoryProvider)
+          .updateCategory(widget.category.id, name: _name.text.trim(), iconKey: _iconKey, colorHex: _colorHex);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -109,7 +136,12 @@ class _CategoryStyleSheetState extends ConsumerState<CategoryStyleSheet> {
     if (!mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     Navigator.pop(context);
-    messenger?.showSnackBar(SnackBar(content: Text('${widget.category.name} updated')));
+    final newName = _name.text.trim();
+    messenger?.showSnackBar(SnackBar(
+      content: Text(newName == widget.category.name
+          ? '${widget.category.name} updated'
+          : '${widget.category.name} renamed to $newName'),
+    ));
   }
 
   @override
@@ -123,90 +155,107 @@ class _CategoryStyleSheetState extends ConsumerState<CategoryStyleSheet> {
       ...kCategoryPaletteHex,
     ];
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.88),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(children: [
-              ColorIconCircle(icon: categoryIconFor(_iconKey), color: color, size: 44),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.category.name, style: theme.textTheme.titleMedium),
-                  Text('${widget.category.kind.label} category', style: theme.textTheme.bodySmall),
-                ]),
-              ),
-            ]),
-          ),
-          const Divider(height: 1),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Colour', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final hex in swatches)
-                    _Swatch(
-                      key: Key('color-$hex'),
-                      color: parseHexColor(hex),
-                      selected: hex == _colorHex,
-                      onTap: () => setState(() => _colorHex = hex),
+    final nameError = _nameError;
+
+    // Lifted above the on-screen keyboard while the name is being typed.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.88),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: ColorIconCircle(icon: categoryIconFor(_iconKey), color: color, size: 44),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    key: const Key('category-name'),
+                    controller: _name,
+                    maxLength: kCategoryNameMaxLength,
+                    textCapitalization: TextCapitalization.sentences,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: '${widget.category.kind.label} category name',
+                      errorText: nameError,
+                      counterText: '',
                     ),
-                ]),
-                for (final group in kCategoryIconGroups) ...[
-                  const SizedBox(height: 12),
-                  Text(group.name, style: theme.textTheme.labelLarge),
-                  const SizedBox(height: 6),
-                  Wrap(spacing: 6, runSpacing: 6, children: [
-                    for (final def in group.icons)
-                      _IconChoice(
-                        key: Key('icon-${def.key}'),
-                        def: def,
-                        color: color,
-                        selected: def.key == _iconKey,
-                        onTap: () => setState(() => _iconKey = def.key),
-                      ),
-                  ]),
-                ],
+                  ),
+                ),
               ]),
             ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + MediaQuery.paddingOf(context).bottom),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-                ),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+            const Divider(height: 1),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Colour', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final hex in swatches)
+                      _Swatch(
+                        key: Key('color-$hex'),
+                        color: parseHexColor(hex),
+                        selected: hex == _colorHex,
+                        onTap: () => setState(() => _colorHex = hex),
+                      ),
+                  ]),
+                  for (final group in kCategoryIconGroups) ...[
+                    const SizedBox(height: 12),
+                    Text(group.name, style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 6),
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      for (final def in group.icons)
+                        _IconChoice(
+                          key: Key('icon-${def.key}'),
+                          def: def,
+                          color: color,
+                          selected: def.key == _iconKey,
+                          onTap: () => setState(() => _iconKey = def.key),
+                        ),
+                    ]),
+                  ],
+                ]),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + MediaQuery.paddingOf(context).bottom),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton.icon(
-                    key: const Key('category-style-save'),
-                    onPressed: _saving || !_changed ? null : _save,
-                    icon: _saving
-                        ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.check),
-                    label: const Text('Save'),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      key: const Key('category-save'),
+                      onPressed: _saving || !_changed || nameError != null ? null : _save,
+                      icon: _saving
+                          ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.check),
+                      label: const Text('Save'),
+                    ),
+                  ),
+                ]),
               ]),
-            ]),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

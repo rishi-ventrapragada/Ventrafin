@@ -1,0 +1,89 @@
+/* Layer order first: PrimeVue's styles sit below Tailwind's components and
+   utilities, so a utility class always wins over a PrimeVue default. */
+@layer theme, base, primevue, components, utilities;
+@import "tailwindcss";
+@plugin "tailwindcss-primeui";
+
+@theme {
+  /* Segoe UI on Dad's Windows PC; the rest are fallbacks. */
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --color-ocean: #1565c0;
+  --color-ocean-dark: #0d47a1;
+  --color-accent: #00897b;
+  --color-expense: #c62828;
+  --color-income: #2e7d32;
+  --color-transfer: #546e7a;
+  --color-uncat: #b26a00;
+  --color-page: #f3f6f9;
+}
+
+@layer base {
+  /* Dense, Excel-like (DECISIONS.md D7): 14px root, so every rem is smaller. */
+  html {
+    font-size: 14px;
+  }
+  body {
+    background: var(--color-page);
+    color: #1f2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Light mode only (PRD § 4.8). */
+  :root {
+    color-scheme: light;
+  }
+}
+
+@layer components {
+  .num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+  }
+  .card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  .muted {
+    color: #64748b;
+  }
+  /* Dense data tables that aren't PrimeVue DataTables (dashboard, previews). */
+  .dense-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.93rem;
+  }
+  .dense-table th {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.85rem;
+    text-align: left;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #cbd5e1;
+    background: #f8fafc;
+    white-space: nowrap;
+  }
+  .dense-table td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid #edf2f7;
+    vertical-align: middle;
+  }
+  .dense-table tr:hover td {
+    background: #f8fbff;
+  }
+  kbd {
+    font-family: inherit;
+    font-size: 0.8em;
+    padding: 0 0.3em;
+    border: 1px solid #cbd5e1;
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    background: #fff;
+    color: #334155;
+  }
+}

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Ventrafin (demo)</title>
+    <style>
+      #demo-ribbon {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 3000;
+        background: #b26a00;
+        color: #fff;
+        font: 600 12px/1.6 'Segoe UI', system-ui, sans-serif;
+        padding: 2px 10px;
+        border-radius: 4px;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="demo-ribbon">DEMO · sample data in memory · nothing is saved</div>
+    <script type="module" src="/demo/main.ts"></script>
+  </body>
+</html>

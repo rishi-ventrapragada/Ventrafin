@@ -198,6 +198,77 @@ The exact rule, the filler words and test vectors are in `/shared/category-style
 
 ---
 
+## D16. Web entry: an always-editable grid for Add, PrimeVue cell editing for Transactions, one row parser
+
+**Decision:**
+- **Add** is a custom grid where every cell is an input all the time, like a blank spreadsheet. Excel keys work:
+  - Tab / Enter / arrows move between cells;
+  - Ctrl+D fills down;
+  - Ctrl+; enters today's date;
+  - Ctrl+S saves.
+- **Transactions** uses PrimeVue's DataTable in cell-edit mode: the rows read like the phone's list (icons, badges, colours), and a click turns one cell into an editor.
+- Category, account, type and "paid by" cells in both are a small **type-to-filter pick list** (`ComboInput`). Typing "gro" offers Groceries, and "gpay" means UPI.
+- Every Add row is **text**, like a spreadsheet cell. Typed rows and rows pasted from Excel go through the same parser (`web/src/lib/entryRow.ts`), which applies the phone's rules:
+  - amount > 0;
+  - day/month/year dates;
+  - a payment method for expenses;
+  - a different "To" account for transfers.
+- Pasting several cells opens a **preview**:
+  - it detects columns from headings or from the values, including bank-statement Withdrawal/Deposit pairs, and each detected column can be changed;
+  - it marks invalid rows with the reason;
+  - it saves only after confirmation. Rows with problems go into the grid to be fixed.
+- An unknown category name is a **warning, not an error**: the row saves on Auto. This keeps a pasted "Kirana" from blocking a whole sheet.
+- A save inserts all ready rows in **one statement** (all or nothing) with client-generated ids, so a retry after a lost response can't duplicate anything.
+
+**Why:**
+- PrimeVue's editors open on click and lean on Enter to finish editing, and their dropdowns take Enter too. That's right for correcting one cell, and wrong for typing twenty rows in a row, where Enter must mean "next row" as in Excel.
+- One parser for typed and pasted rows means they can't drift apart.
+- A preview with visible column mapping is safer than guessing silently, and Dad reads tables fluently.
+
+**Rejected:** PrimeVue's DataTable for batch entry as well (Enter conflicts, and the cells are invisible until clicked); the Clipboard API "Paste" button (browser permission prompts; a paste box works everywhere); auto-creating categories from pasted names (adding categories comes in phase 4).
+
+---
+
+## D17. Web icons: Material Symbols as generated SVG paths, no icon font, no third-party requests
+
+**Decision:** the web app draws the same Material Symbols glyphs as the phone (D13), but as SVG paths.
+- `web/scripts/gen-icons.mjs` reads the icon keys from `/shared/category-style.json` plus a short list of UI icons. It writes `src/lib/icons.generated.ts` from the `@material-symbols/svg-400` package (Apache-2.0), using the filled variant for category glyphs, as Flutter's `Icons.*` are filled.
+- Four Material Icons names that Symbols renamed are mapped (smartphone → mobile, card_giftcard → redeem, auto_awesome → star_shine, expand_more → keyboard_arrow_down). The stored keys stay the Flutter names.
+- The page text uses the system font (Segoe UI on Windows). The CSP therefore needs no font or CDN host at all: only the app's origin and the Supabase URL.
+
+**Why:**
+- An icon font from Google Fonts would be a third-party request on every visit (privacy, PRD priority 2), plus a CSP exception.
+- Before the font loads, the icon names would flash as text ("restaurant").
+- The full self-hosted font is several megabytes for roughly 120 glyphs. The generated file is about 40 kB before compression.
+- A test checks that every curated key has a glyph.
+
+---
+
+## D18. Renaming a category keeps its built-in keywords (`categories.builtin_name`)
+
+**Decision:** Increment 3 lets both apps rename categories. Auto-categorization used to find a built-in keyword's category **by name** ("Swiggy" → the category called "Food"), so renaming Food to "Khana" would have made the next Swiggy entry quietly re-create a "Food" category. Migration `…044748_category_builtin_link` changes this:
+- It adds `categories.builtin_name`, the built-in category a row stands for. A trigger fills it on insert when the name is a built-in one and keeps it on update, so clients can't set or move it.
+- The categorizer looks the category up through that link first and by name second. An active category is preferred over an archived one.
+- Tests are in `supabase/tests/06_category_rename.test.sql`.
+
+**Consequences:**
+- A new category that takes the old name ("Food" again, while "Khana" exists) is a plain category. The keywords stay with the renamed original until it is archived.
+- A user category renamed *to* a built-in name ("Car costs" → "Fuel") is found by name, as before.
+- Changing a category's kind drops its link.
+
+**Rejected:** leaving rename naive (confusing duplicates); asking the client to re-point rules on rename (logic duplicated in two apps, and the built-in list isn't readable by clients).
+
+---
+
+## D19. Web library choices
+
+- **PrimeVue 4.5** (MIT), not 5.x: 5.x adds a `@primeui/license-manager` dependency, and 4.5 has everything this app uses. Upgrading is a later, deliberate step.
+- **TypeScript 5.9**, not 7: `vue-tsc` needs the TypeScript language-service API, which the native TypeScript 7 compiler doesn't expose yet.
+- **No Pinia**: a small app context (provide/inject) with per-table revision counters mirrors the phone's design and is easy to fake in tests.
+- **Vitest + @vue/test-utils + jsdom** for unit and component tests. jsdom 29 is used because 30 needs a newer Node 24 minor than the dev PC has.
+
+---
+
 ## Open items not yet decided
 
 - Exact backup/export mechanism for guarding against Supabase's lack of free-tier backups (flagged in `PRD.md` § 5, not yet solved).

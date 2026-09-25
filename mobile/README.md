@@ -50,7 +50,7 @@ lib/
     lock/        pattern pad, PBKDF2 hashing, lock store/controller, lock overlay, setup
     entry/       keypad-first Add (batch) and Edit forms
     transactions/  month list grouped by date, delete, live updates
-    categories/  category list + icon/colour editor
+    categories/  category list + rename / icon / colour editor
     dashboard/   spending-by-category donut and table
     shell/ settings/  bottom nav, dashboard, More, placeholders, settings
 test/            money, pattern-hash and category-style unit tests; add-flow and screen widget tests

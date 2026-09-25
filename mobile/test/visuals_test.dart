@@ -87,7 +87,7 @@ void main() {
       await tester.tap(find.byKey(const Key('category-cat-food')));
       await tester.pumpAndSettle();
 
-      final save = find.byKey(const Key('category-style-save'));
+      final save = find.byKey(const Key('category-save'));
       expect(tester.widget<FilledButton>(save).onPressed, isNull, reason: 'nothing changed yet');
 
       await tapVisible(tester, find.byKey(const Key('color-#AD1457')));
@@ -95,11 +95,57 @@ void main() {
       await tester.tap(save);
       await tester.pumpAndSettle();
 
-      expect(repo.styleUpdates.single, (id: 'cat-food', iconKey: 'local_cafe', colorHex: '#AD1457'));
+      expect(repo.categoryUpdates.single, (id: 'cat-food', name: 'Food', iconKey: 'local_cafe', colorHex: '#AD1457'));
       expect(find.text('Food updated'), findsOneWidget);
       // The list re-fetches and shows the new icon.
       expect(find.descendant(of: find.byKey(const Key('category-cat-food')), matching: find.byIcon(Icons.local_cafe)),
           findsOneWidget);
+    });
+
+    testWidgets('rename a category', (tester) async {
+      final (repo, _) = await pumpWithFakes(tester, const CategoriesScreen());
+      await tester.tap(find.byKey(const Key('category-cat-food')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('category-name')), '  Khana  ');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('category-save')));
+      await tester.pumpAndSettle();
+
+      expect(repo.categoryUpdates.single.name, 'Khana', reason: 'sent trimmed');
+      expect(repo.categoryUpdates.single.iconKey, 'restaurant', reason: 'icon and colour stay as they were');
+      expect(find.text('Food renamed to Khana'), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('category-cat-food')), matching: find.text('Khana')),
+          findsOneWidget);
+    });
+
+    testWidgets('rename: empty, reserved and duplicate names are refused before saving', (tester) async {
+      final (repo, _) = await pumpWithFakes(tester, const CategoriesScreen());
+      await tester.tap(find.byKey(const Key('category-cat-food')));
+      await tester.pumpAndSettle();
+      final save = find.byKey(const Key('category-save'));
+
+      Future<void> typeName(String name) async {
+        await tester.enterText(find.byKey(const Key('category-name')), name);
+        await tester.pumpAndSettle();
+      }
+
+      await typeName('   ');
+      expect(find.text('Enter a name'), findsOneWidget);
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+
+      await typeName('uncategorized');
+      expect(find.textContaining('is reserved'), findsOneWidget);
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+
+      await typeName('groceries');
+      expect(find.text('You already have an expense category called "Groceries"'), findsOneWidget);
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+
+      // An income category may share a name with an expense one.
+      await typeName('Salary');
+      expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+      expect(repo.categoryUpdates, isEmpty);
     });
 
     testWidgets('offline: nothing is sent and the sheet says why', (tester) async {
@@ -107,10 +153,10 @@ void main() {
       await tester.tap(find.byKey(const Key('category-cat-groc')));
       await tester.pumpAndSettle();
       await tapVisible(tester, find.byKey(const Key('icon-house')));
-      await tester.tap(find.byKey(const Key('category-style-save')));
+      await tester.tap(find.byKey(const Key('category-save')));
       await tester.pumpAndSettle();
 
-      expect(repo.styleUpdates, isEmpty);
+      expect(repo.categoryUpdates, isEmpty);
       expect(find.textContaining('no internet connection'), findsOneWidget);
     });
   });

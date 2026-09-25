@@ -90,6 +90,37 @@ class Category {
   final String iconKey;
 }
 
+/// Longest category name the database accepts (`categories_name_check`).
+const int kCategoryNameMaxLength = 40;
+
+/// Why [name] can't be used for a category of [kind], or null if it can.
+/// Mirrors the database's rules so the form can say so before saving:
+/// 1–40 characters, "Uncategorized" is reserved, and names are unique per
+/// kind ignoring case (archived categories count too). The database still
+/// enforces all of them.
+String? categoryNameError(
+  String name, {
+  required TxnType kind,
+  required Iterable<Category> existing,
+  String? exceptId,
+}) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return 'Enter a name';
+  if (trimmed.runes.length > kCategoryNameMaxLength) {
+    return 'Keep it to $kCategoryNameMaxLength characters or fewer';
+  }
+  final lower = trimmed.toLowerCase();
+  if (lower == 'uncategorized') return '"Uncategorized" is reserved for entries without a category';
+  final clash = existing
+      .where((c) => c.id != exceptId && c.kind == kind && c.name.trim().toLowerCase() == lower)
+      .firstOrNull;
+  if (clash != null) {
+    final article = kind == TxnType.income ? 'an income' : 'an expense';
+    return 'You already have $article category called "${clash.name}"${clash.archived ? ' (archived)' : ''}';
+  }
+  return null;
+}
+
 Color parseHexColor(String? hex, {Color fallback = const Color(0xFF9E9E9E)}) {
   if (hex == null || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex)) return fallback;
   return Color(0xFF000000 | int.parse(hex.substring(1), radix: 16));

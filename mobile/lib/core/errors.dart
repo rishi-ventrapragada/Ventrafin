@@ -23,6 +23,8 @@ String describeError(Object error) {
     switch (error.code) {
       case '42501':
         return "You don't have permission to do that. Try signing out and back in.";
+      case '23505':
+        return 'That name is already used. Pick a different one.';
       case '23503':
         return 'That account or category no longer exists. Pick another one and try again.';
       case '23514':

@@ -76,11 +76,11 @@ class SupabaseFinanceRepository implements FinanceRepository {
       });
 
   @override
-  Future<Category> updateCategoryStyle(String id, {required String iconKey, required String colorHex}) =>
+  Future<Category> updateCategory(String id, {required String name, required String iconKey, required String colorHex}) =>
       _run(() async {
         final row = await _client
             .from('categories')
-            .update({'icon': iconKey, 'color': colorHex})
+            .update({'name': name.trim(), 'icon': iconKey, 'color': colorHex})
             .eq('id', id)
             .select()
             .single();
