@@ -61,6 +61,55 @@ class TxnFilterNotifier extends Notifier<TxnFilter> {
 
 final txnFilterProvider = NotifierProvider<TxnFilterNotifier, TxnFilter>(TxnFilterNotifier.new);
 
+/// How the Transactions list is ordered. The date orders keep the day
+/// groups; the amount orders are one flat list, each row showing its date.
+enum TxnSort {
+  newest('Newest first'),
+  oldest('Oldest first'),
+  largest('Largest amount first'),
+  smallest('Smallest amount first');
+
+  const TxnSort(this.label);
+  final String label;
+
+  bool get byAmount => this == largest || this == smallest;
+}
+
+class TxnSortNotifier extends Notifier<TxnSort> {
+  @override
+  TxnSort build() => TxnSort.newest;
+
+  void set(TxnSort sort) => state = sort;
+}
+
+/// Kept while switching months and searching, like the filter.
+final txnSortProvider = NotifierProvider<TxnSortNotifier, TxnSort>(TxnSortNotifier.new);
+
+/// [txns] in [sort] order. Ties: the newer entry first (by date, then when
+/// it was added), so equal amounts read like the normal list.
+List<Txn> sortTxns(Iterable<Txn> txns, TxnSort sort) {
+  int newer(Txn a, Txn b) {
+    final byDate = b.date.compareTo(a.date);
+    if (byDate != 0) return byDate;
+    final byAdded = b.createdAt.compareTo(a.createdAt);
+    return byAdded != 0 ? byAdded : a.id.compareTo(b.id);
+  }
+
+  return txns.toList()
+    ..sort(switch (sort) {
+      TxnSort.newest => newer,
+      TxnSort.oldest => (a, b) => newer(b, a),
+      TxnSort.largest => (a, b) {
+          final c = b.amountPaise.compareTo(a.amountPaise);
+          return c != 0 ? c : newer(a, b);
+        },
+      TxnSort.smallest => (a, b) {
+          final c = a.amountPaise.compareTo(b.amountPaise);
+          return c != 0 ? c : newer(a, b);
+        },
+    });
+}
+
 /// The Transactions search: null while closed (the month view), otherwise
 /// the text typed so far. A non-blank text searches every month.
 class TxnSearchNotifier extends Notifier<String?> {

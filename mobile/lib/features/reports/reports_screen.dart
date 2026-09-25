@@ -127,11 +127,23 @@ Widget _loading() => const SizedBox(height: 80, child: Center(child: CircularPro
 Widget _failed(Object error, VoidCallback onRetry) =>
     LoadError(compact: true, message: describeError(error), onRetry: onRetry);
 
+/// Explains the month summary's Net and Saved rows (REP-4).
+const String kReportsNetSavedCaption =
+    'Net = income minus spending. Saved = the part of income not spent, as a percentage.';
+
+/// Explains the tables' short column headers (REP-4).
+const String kReportsColumnsCaption =
+    '# = number of entries. vs last = change from the month before. Avg = monthly average over the months shown.';
+
 TextStyle? _head(BuildContext context) =>
     Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
+/// A right-aligned number that shrinks to fit its cell rather than being
+/// cut off (a large font size, or a crore-sized amount).
+Widget _fit(Widget child) => FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: child);
+
 Widget _num(String text, {TextStyle? style, double? width}) {
-  final t = Text(text, textAlign: TextAlign.right, maxLines: 1, style: style);
+  final t = _fit(Text(text, textAlign: TextAlign.right, maxLines: 1, style: style));
   return width == null ? Expanded(child: t) : SizedBox(width: width, child: t);
 }
 
@@ -147,17 +159,17 @@ class _Change extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall;
     final diff = now - before;
-    if (diff == 0) return Text('same', textAlign: TextAlign.right, style: style);
+    if (diff == 0) return _fit(Text('same', textAlign: TextAlign.right, style: style));
     if (before == 0) {
-      return Text(
+      return _fit(Text(
         'new',
         textAlign: TextAlign.right,
         style: style?.copyWith(color: upIsGood ? kIncomeColor : kExpenseColor),
-      );
+      ));
     }
     final up = diff > 0;
     final color = up == upIsGood ? kIncomeColor : kExpenseColor;
-    return Text.rich(
+    return _fit(Text.rich(
       TextSpan(
         children: [
           WidgetSpan(
@@ -170,7 +182,7 @@ class _Change extends StatelessWidget {
       textAlign: TextAlign.right,
       maxLines: 1,
       style: style?.copyWith(color: color, fontWeight: FontWeight.w600),
-    );
+    ));
   }
 }
 
@@ -220,10 +232,7 @@ class _MonthSummaryCard extends ConsumerWidget {
               const SizedBox(width: 64),
               _num('This month', style: _head(context)),
               _num('Last month', style: _head(context)),
-              SizedBox(
-                width: 62,
-                child: Text('Change', textAlign: TextAlign.right, style: _head(context)),
-              ),
+              _num('Change', style: _head(context), width: 62),
             ],
           ),
           const Divider(height: 8),
@@ -258,6 +267,16 @@ class _MonthSummaryCard extends ConsumerWidget {
                 style: theme.textTheme.bodySmall,
               ),
             ),
+          // What the words and column headers on this screen mean. The
+          // first line is the same on the web (which has no #/Avg columns).
+          Padding(
+            key: const Key('report-caption'),
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '$kReportsNetSavedCaption\n$kReportsColumnsCaption',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
         ],
       );
     }
@@ -308,22 +327,10 @@ class _CategoryMonthCard extends ConsumerWidget {
           Row(
             children: [
               Expanded(child: Text('Category', style: _head(context))),
-              SizedBox(
-                width: 26,
-                child: Text('#', textAlign: TextAlign.right, style: _head(context)),
-              ),
-              SizedBox(
-                width: 80,
-                child: Text('Amount', textAlign: TextAlign.right, style: _head(context)),
-              ),
-              SizedBox(
-                width: 40,
-                child: Text('Share', textAlign: TextAlign.right, style: _head(context)),
-              ),
-              SizedBox(
-                width: 50,
-                child: Text('vs last', textAlign: TextAlign.right, style: _head(context)),
-              ),
+              _num('#', style: _head(context), width: 26),
+              _num('Amount', style: _head(context), width: 80),
+              _num('Share', style: _head(context), width: 40),
+              _num('vs last', style: _head(context), width: 50),
             ],
           ),
           const Divider(height: 8),
@@ -348,30 +355,13 @@ class _CategoryMonthCard extends ConsumerWidget {
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
-                  SizedBox(
-                    width: 26,
-                    child: Text(
-                      '${counts[r.categoryId ?? 'uncategorized'] ?? 0}',
-                      textAlign: TextAlign.right,
-                      style: small,
-                    ),
-                  ),
-                  SizedBox(
+                  _num('${counts[r.categoryId ?? 'uncategorized'] ?? 0}', style: small, width: 26),
+                  _num(
+                    formatRupeesCompact(r.thisMonthPaise),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                     width: 80,
-                    child: Text(
-                      formatRupeesCompact(r.thisMonthPaise),
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
                   ),
-                  SizedBox(
-                    width: 40,
-                    child: Text(
-                      total > 0 ? '${(r.thisMonthPaise * 100 / total).round()}%' : '',
-                      textAlign: TextAlign.right,
-                      style: small,
-                    ),
-                  ),
+                  _num(total > 0 ? '${(r.thisMonthPaise * 100 / total).round()}%' : '', style: small, width: 40),
                   SizedBox(
                     width: 50,
                     child: _Change(now: r.thisMonthPaise, before: r.lastMonthPaise, upIsGood: !expense),
@@ -385,13 +375,10 @@ class _CategoryMonthCard extends ConsumerWidget {
               Expanded(
                 child: Text('Total', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
               ),
-              SizedBox(
+              _num(
+                formatRupeesCompact(total),
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
                 width: 106,
-                child: Text(
-                  formatRupeesCompact(total),
-                  textAlign: TextAlign.right,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
               ),
               const SizedBox(width: 40),
               SizedBox(
@@ -813,6 +800,7 @@ class _PivotTable extends StatelessWidget {
   static const double _nameW = 118;
   static const double _monthW = 66;
   static const double _totalW = 76;
+  /// Row height at the normal text size; grows with the phone's font size.
   static const double _rowH = 28;
 
   @override
@@ -824,14 +812,19 @@ class _PivotTable extends StatelessWidget {
     final totals = trend.monthTotals;
     final grand = totals.fold<int>(0, (s, v) => s + v);
     final divider = BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6), width: 0.6);
+    final scaled = MediaQuery.textScalerOf(context).scale(_rowH);
+    final rowH = scaled > _rowH ? scaled : _rowH;
 
+    // Labels (left) cut off with "…"; numbers (right) shrink to fit.
     Widget cell(String text, double width, {TextStyle? style, bool left = false}) => Container(
       width: width,
-      height: _rowH,
+      height: rowH,
       alignment: left ? Alignment.centerLeft : Alignment.centerRight,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(border: Border(bottom: divider)),
-      child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+      child: left
+          ? Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)
+          : _fit(Text(text, maxLines: 1, style: style)),
     );
 
     final names = Column(
@@ -839,8 +832,9 @@ class _PivotTable extends StatelessWidget {
         cell('Category', _nameW, style: _head(context), left: true),
         for (final r in trend.rows)
           Container(
+            key: Key('pivot-row-${r.key}'),
             width: _nameW,
-            height: _rowH,
+            height: rowH,
             decoration: BoxDecoration(border: Border(bottom: divider)),
             child: Row(
               children: [

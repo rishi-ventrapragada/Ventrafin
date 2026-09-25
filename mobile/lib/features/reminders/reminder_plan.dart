@@ -17,8 +17,10 @@ import '../../data/models.dart';
 ///    `billReminderDaysBefore` days earlier (none when that is 0). For the
 ///    next unpaid month and the ones after it, [kBillMonthsAhead] months in
 ///    all, so reminders keep coming even if the app isn't opened for weeks.
-///    A month that is already overdue gets nothing more: the Bills screen
-///    shows it in red.
+///    The due dates come from the database (`get_bill_schedule`'s
+///    upcoming_due_dates), which alone knows how due days clamp to short
+///    months. A month that is already overdue gets nothing more: the Bills
+///    screen shows it in red.
 ///  * Nothing in the past is scheduled.
 
 /// Bill reminders go off at 9:00 am India time: early enough to pay that day.
@@ -98,12 +100,9 @@ List<PlannedReminder> planReminders({required Profile profile, required List<Bil
   for (var i = 0; i < sorted.length; i++) {
     final bill = sorted[i];
     if (!bill.reminderEnabled) continue;
-    for (var k = 0; k < kBillMonthsAhead; k++) {
-      var month = bill.nextDueMonth;
-      for (var j = 0; j < k; j++) {
-        month = month.next;
-      }
-      final due = billDueDate(month, bill.dueDay);
+    final dueDates = bill.upcomingDueDates;
+    for (var k = 0; k < dueDates.length && k < kBillMonthsAhead; k++) {
+      final due = dueDates[k];
       if (due.isBefore(today)) continue; // overdue: shown on the Bills screen instead
       final baseId = 1000 + i * 10 + k * 2;
       final dueLabel = DateFormat('EEE, d MMM').format(due);

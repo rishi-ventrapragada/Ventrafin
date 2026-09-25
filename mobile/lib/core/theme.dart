@@ -43,6 +43,12 @@ ThemeData buildAppTheme(ThemeTokens t) {
       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     ),
     listTileTheme: const ListTileThemeData(dense: true),
+    // Solid primary, like the other main buttons (M3's default is the pale
+    // primaryContainer, which here is primarySoft).
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+    ),
     navigationBarTheme: NavigationBarThemeData(
       height: 64,
       backgroundColor: kCardColor,

@@ -521,6 +521,7 @@ class Bill {
     required this.daysUntil,
     required this.status,
     required this.overdueCount,
+    this._upcomingDueDates,
   });
 
   factory Bill.fromScheduleRow(Map<String, dynamic> r) => Bill(
@@ -537,7 +538,17 @@ class Bill {
     daysUntil: (r['days_until'] as num).toInt(),
     status: BillStatus.fromDb(r['status'] as String),
     overdueCount: (r['overdue_count'] as num).toInt(),
+    upcomingDueDates: _parseDates(r['upcoming_due_dates']),
   );
+
+  /// A Postgres `date[]` as PostgREST sends it (a list of `yyyy-mm-dd`).
+  /// Null when the column is missing (the function before audit round 2),
+  /// null or not a list.
+  static List<DateTime>? _parseDates(Object? v) {
+    if (v is! List) return null;
+    final dates = [for (final d in v.whereType<String>()) parseIsoDate(d)];
+    return dates.isEmpty ? null : dates;
+  }
 
   final String id;
   final String name;
@@ -562,6 +573,14 @@ class Bill {
 
   /// Unpaid months whose due date has passed.
   final int overdueCount;
+
+  final List<DateTime>? _upcomingDueDates;
+
+  /// Due dates of the next unpaid months, oldest first (the first is
+  /// [nextDueDate]), with the due day already clamped to short months by
+  /// the database. Reminders are scheduled from these. Just [nextDueDate]
+  /// when the database didn't send them.
+  List<DateTime> get upcomingDueDates => _upcomingDueDates ?? [nextDueDate];
 
   /// The month whose bill is due next (what "Mark paid" settles).
   YearMonth get nextDueMonth => YearMonth.of(nextDueDate);
@@ -613,14 +632,6 @@ class BillDraft {
 
 /// Longest bill name the database accepts (`recurring_bills_name_check`).
 const int kBillNameMaxLength = 60;
-
-/// Due date of a bill in [month]: [dueDay] clamped to the month's last day.
-/// Same rule as `private.bill_due_date` in the database; the phone needs it
-/// to schedule reminders for the months after the next one.
-DateTime billDueDate(YearMonth month, int dueDay) {
-  final last = DateTime(month.year, month.month + 1, 0).day;
-  return DateTime(month.year, month.month, dueDay < last ? dueDay : last);
-}
 
 /// `10th of every month`; 31 reads as the last day.
 String dueDayLabel(int day) {

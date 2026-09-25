@@ -17,6 +17,7 @@ import 'package:ventrafin/features/reports/report_data.dart';
 import 'package:ventrafin/features/reports/reports_screen.dart';
 import 'package:ventrafin/features/settings/export_sheet.dart';
 import 'package:ventrafin/features/settings/settings_screen.dart';
+import 'package:ventrafin/features/shell/simple_screens.dart';
 
 import 'support/fake_repository.dart';
 
@@ -494,13 +495,17 @@ void main() {
           for (var i = 0; i < 8; i++) _ct(m, 'c$i', 'A long category name $i', 12345600 * (i + 1)),
       ];
 
-    for (final (width, scale) in [(412.0, 1.0), (360.0, 1.0), (412.0, 1.3), (360.0, 1.3)]) {
+    for (final (width, scale) in [(412.0, 1.0), (360.0, 1.0), (412.0, 1.3), (360.0, 1.3), (360.0, 1.5)]) {
       for (final (name, screen) in <(String, Widget)>[
+        ('Dashboard', const DashboardScreen()),
         ('Reports', const ReportsScreen()),
         ('Bills', const BillsScreen()),
         ('Bill form', const BillFormScreen(billId: 'bill-1')),
         ('Settings', const SettingsScreen()),
       ]) {
+        // Settings' "When to remind" dropdown doesn't fit at ×1.5 yet (not
+        // part of audit round 2).
+        if (scale > 1.3 && name == 'Settings') continue;
         testWidgets('$name at ${width.toInt()} dp, text ×$scale', (tester) async {
           tester.platformDispatcher.textScaleFactorTestValue = scale;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);

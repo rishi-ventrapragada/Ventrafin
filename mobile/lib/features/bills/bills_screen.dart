@@ -203,14 +203,34 @@ class _BillRow extends ConsumerWidget {
   }
 }
 
+/// The bell: one tap flips the bill's reminder, with Undo in the SnackBar
+/// (it sits right next to the tappable row, so a slip is easy).
 Future<void> _toggleReminder(BuildContext context, WidgetRef ref, Bill bill) async {
   final messenger = ScaffoldMessenger.of(context);
+  final repo = ref.read(repositoryProvider);
+  final revisions = ref.read(revisionsProvider.notifier);
+  final before = bill.reminderEnabled;
   try {
-    await ref.read(repositoryProvider).setBillReminder(bill.id, !bill.reminderEnabled);
-    ref.read(revisionsProvider.notifier).bump(['recurring_bills']);
-    messenger.showSnackBar(
-      SnackBar(content: Text(bill.reminderEnabled ? 'No reminders for ${bill.name}' : 'Reminders on for ${bill.name}')),
-    );
+    await repo.setBillReminder(bill.id, !before);
+    revisions.bump(['recurring_bills']);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(before ? 'No reminders for ${bill.name}' : 'Reminders on for ${bill.name}'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              try {
+                await repo.setBillReminder(bill.id, before);
+                revisions.bump(['recurring_bills']);
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text("Couldn't undo. ${describeError(e)}")));
+              }
+            },
+          ),
+        ),
+      );
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text(describeError(e))));
   }

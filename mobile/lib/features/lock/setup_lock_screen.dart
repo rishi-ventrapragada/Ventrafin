@@ -13,6 +13,8 @@ enum _Step { draw, confirm, fingerprint }
 
 /// First run after sign-in (and after "Forgot pattern?"): draw a pattern,
 /// draw it again to confirm, then optionally turn on fingerprint unlock.
+/// "Not you? Sign out" leads back to sign-in if the wrong Google account
+/// was picked.
 ///
 /// With [requireCurrent] (Settings > Change pattern) the current pattern is
 /// asked for first.
@@ -150,7 +152,8 @@ class _SetupLockScreenState extends ConsumerState<SetupLockScreen> {
     // Dark status-bar icons wherever the page shows through; under the app
     // bar, the AppBar's own style (to suit the brand colour) wins.
     // Changing the pattern: once a new one has been drawn, leaving asks
-    // first. (First-run setup has no way back to leave by.)
+    // first. (First-run setup has no back; "Not you? Sign out" is its way
+    // out.)
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: kDarkStatusBarIcons,
       child: UnsavedChangesScope(
@@ -172,11 +175,22 @@ class _SetupLockScreenState extends ConsumerState<SetupLockScreen> {
                       style: theme.textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
-                    if (email != null) ...[
-                      const SizedBox(height: 4),
-                      Text('Signed in as $email', style: theme.textTheme.bodySmall),
-                    ],
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
+                    // The wrong Google account picked: an ordinary sign-out
+                    // (nothing is set up yet), back to the sign-in screen.
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (email != null) Text('Signed in as $email', style: theme.textTheme.bodySmall),
+                        TextButton(
+                          key: const Key('setup-sign-out'),
+                          onPressed: _busy ? null : () => ref.read(lockControllerProvider.notifier).signOut(),
+                          child: const Text('Not you? Sign out'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                   ],
                   Text(_title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
                   const SizedBox(height: 8),

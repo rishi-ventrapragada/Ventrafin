@@ -456,7 +456,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
     final required = _type == TxnType.expense;
     return InputDecorator(
       decoration: InputDecoration(
-        labelText: required ? 'Paid by' : 'Payment method (optional)',
+        labelText: required ? 'Paid by' : 'Paid by (optional)',
         errorText: _methodError,
         contentPadding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
       ),
@@ -482,32 +482,50 @@ class EntryFormState extends ConsumerState<EntryForm> {
     final clock = ref.read(clockProvider);
     final today = indiaToday(clock);
     final yesterday = DateTime(today.year, today.month, today.day - 1);
-    return Row(
+    final dateText = friendlyDate(_date, clock: clock);
+    final field = InkWell(
+      key: const Key('entry-date'),
+      onTap: _pickDate,
+      child: InputDecorator(
+        decoration: const InputDecoration(labelText: 'Date', suffixIcon: Icon(Icons.calendar_today, size: 18)),
+        child: Text(dateText, key: const Key('entry-date-text')),
+      ),
+    );
+    // Shortcuts; the filled chip is enough to show which (no checkmark,
+    // so they stay narrow).
+    final chips = Wrap(
+      spacing: 4,
+      runSpacing: 4,
       children: [
-        Expanded(
-          child: InkWell(
-            key: const Key('entry-date'),
-            onTap: _pickDate,
-            child: InputDecorator(
-              decoration: const InputDecoration(labelText: 'Date', suffixIcon: Icon(Icons.calendar_today, size: 18)),
-              child: Text(friendlyDate(_date, clock: clock), key: const Key('entry-date-text')),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
         ChoiceChip(
+          key: const Key('entry-date-today'),
           label: const Text('Today'),
+          showCheckmark: false,
           selected: _date == today,
           onSelected: (_) => setState(() => _date = today),
         ),
-        const SizedBox(width: 4),
         ChoiceChip(
-          label: const Text('Yest.'),
+          key: const Key('entry-date-yesterday'),
+          label: const Text('Yesterday'),
+          showCheckmark: false,
           selected: _date == yesterday,
           onSelected: (_) => setState(() => _date = yesterday),
         ),
       ],
     );
+    // Chips beside the date when the date still fits on one line next to
+    // them; below it on a narrow phone or with a large system font.
+    return LayoutBuilder(builder: (context, constraints) {
+      final chipsWidth = _labelWidth(context, 'Today') + _labelWidth(context, 'Yesterday') + _kDateChipsChrome;
+      final dateWidth = _textWidth(context, dateText, theme.textTheme.bodyLarge) + _kDateFieldChrome;
+      if (chipsWidth + 6 + dateWidth <= constraints.maxWidth) {
+        return Row(children: [Expanded(child: field), const SizedBox(width: 6), chips]);
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [field, const SizedBox(height: 4), chips],
+      );
+    });
   }
 
   Widget _categoryField(List<Category> categories) {
@@ -523,6 +541,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
           categories: categories,
           kind: _type,
           selectedId: _categoryId,
+          editing: widget.isEdit,
         );
         if (choice != null && mounted) setState(() => _categoryId = choice.id);
       },
@@ -535,12 +554,23 @@ class EntryFormState extends ConsumerState<EntryForm> {
           suffixIcon: const Icon(Icons.arrow_drop_down),
           contentPadding: const EdgeInsets.fromLTRB(12, 8, 0, 8),
         ),
+        // No category: "Auto" for a new entry (the database picks one), but
+        // "Uncategorized" when editing, as the list calls it.
         child: Row(children: [
-          if (selected == null) const AutoCategoryAvatar(size: 24) else CategoryAvatar(category: selected, size: 24),
+          if (selected != null)
+            CategoryAvatar(category: selected, size: 24)
+          else if (widget.isEdit)
+            const UncategorizedAvatar(size: 24)
+          else
+            const AutoCategoryAvatar(size: 24),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              selected == null ? 'Auto' : '${selected.name}${selected.archived ? ' (archived)' : ''}',
+              selected != null
+                  ? '${selected.name}${selected.archived ? ' (archived)' : ''}'
+                  : widget.isEdit
+                  ? 'Uncategorized'
+                  : 'Auto',
               key: const Key('entry-category-text'),
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyLarge,
@@ -594,9 +624,19 @@ class EntryFormState extends ConsumerState<EntryForm> {
   /// icon and its 8 dp gap, and the 8 dp between the buttons.
   static const double _kSaveButtonsChrome = 48 + 40 + 18 + 8 + 8;
 
-  double _labelWidth(BuildContext context, String text) {
+  /// Besides their labels: two chips' padding and borders (about 35 dp
+  /// each, rounded up) and the 4 dp between them.
+  static const double _kDateChipsChrome = 2 * 38 + 4;
+
+  /// Besides the date text: the field's padding and the calendar icon.
+  static const double _kDateFieldChrome = 24 + 48;
+
+  double _labelWidth(BuildContext context, String text) =>
+      _textWidth(context, text, Theme.of(context).textTheme.labelLarge);
+
+  double _textWidth(BuildContext context, String text, TextStyle? style) {
     final painter = TextPainter(
-      text: TextSpan(text: text, style: Theme.of(context).textTheme.labelLarge),
+      text: TextSpan(text: text, style: style),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: 1,

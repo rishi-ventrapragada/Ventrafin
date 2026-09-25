@@ -187,21 +187,32 @@ class RemindersSection extends ConsumerWidget {
           value: profile.dailyReminderEnabled,
           onChanged: (v) => _save(context, ref, ProfilePatch(dailyReminderEnabled: v)),
         ),
+        // While a reminder is off, its row stays readable; only the control
+        // (the time, the dropdown) is greyed out and can't be changed.
         ListTile(
           key: const Key('daily-reminder-time'),
-          enabled: profile.dailyReminderEnabled,
           leading: const Icon(Icons.schedule),
           title: const Text('Reminder time'),
           subtitle: const Text('India time'),
-          trailing: Text(formatTimeOfDay(profile.dailyReminderTime), style: Theme.of(context).textTheme.titleSmall),
-          onTap: () async {
-            final picked = await showTimePicker(
-              context: context,
-              initialTime: profile.dailyReminderTime,
-              helpText: 'Daily reminder time',
-            );
-            if (picked != null && context.mounted) await _save(context, ref, ProfilePatch(dailyReminderTime: picked));
-          },
+          trailing: Text(
+            formatTimeOfDay(profile.dailyReminderTime),
+            key: const Key('daily-reminder-time-value'),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: profile.dailyReminderEnabled ? null : Theme.of(context).disabledColor,
+                ),
+          ),
+          onTap: !profile.dailyReminderEnabled
+              ? null
+              : () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: profile.dailyReminderTime,
+                    helpText: 'Daily reminder time',
+                  );
+                  if (picked != null && context.mounted) {
+                    await _save(context, ref, ProfilePatch(dailyReminderTime: picked));
+                  }
+                },
         ),
         SwitchListTile(
           key: const Key('bill-reminders-switch'),
@@ -217,7 +228,6 @@ class RemindersSection extends ConsumerWidget {
         ),
         ListTile(
           key: const Key('bill-reminder-days'),
-          enabled: profile.billRemindersEnabled,
           leading: const Icon(Icons.event_available),
           title: const Text('When to remind'),
           subtitle: Text(

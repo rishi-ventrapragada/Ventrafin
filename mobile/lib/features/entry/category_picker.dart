@@ -9,7 +9,7 @@ import '../../data/models.dart';
 class CategoryChoice {
   const CategoryChoice(this.id);
 
-  /// Null = Auto (let the database categorize).
+  /// Null = Auto (let the database categorize); when editing, Uncategorized.
   final String? id;
 }
 
@@ -17,12 +17,16 @@ class CategoryChoice {
 /// category can be found by its picture and colour, not only its name.
 /// Archived categories are left out, except the current one ([selectedId])
 /// of an existing entry, which shows as "Name (archived)".
+///
+/// The no-category tile reads "Auto" for a new entry and, with [editing],
+/// "Uncategorized", as the Transactions list calls an entry without one.
 Future<CategoryChoice?> showCategoryPicker(
   BuildContext context, {
   required List<Category> categories,
   required TxnType kind,
   required String? selectedId,
   bool allowAuto = true,
+  bool editing = false,
 }) {
   final options = categories.where((c) => c.kind == kind && (!c.archived || c.id == selectedId)).toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -51,9 +55,9 @@ Future<CategoryChoice?> showCategoryPicker(
                 return Wrap(spacing: spacing, runSpacing: spacing, children: [
                   if (allowAuto)
                     sized(_Tile(
-                      key: const Key('category-option-auto'),
-                      avatar: const AutoCategoryAvatar(size: 40),
-                      label: 'Auto',
+                      key: Key(editing ? 'category-option-uncategorized' : 'category-option-auto'),
+                      avatar: editing ? const UncategorizedAvatar(size: 40) : const AutoCategoryAvatar(size: 40),
+                      label: editing ? 'Uncategorized' : 'Auto',
                       selected: selectedId == null,
                       onTap: () => Navigator.pop(context, const CategoryChoice(null)),
                     )),
@@ -71,8 +75,12 @@ Future<CategoryChoice?> showCategoryPicker(
               if (allowAuto)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
+                  // The database still tries the description when the
+                  // category is left empty on an edit.
                   child: Text(
-                    'Auto: Ventrafin picks the category from the description.',
+                    editing
+                        ? 'Uncategorized: if the description matches a category, Ventrafin picks it when you save.'
+                        : 'Auto: Ventrafin picks the category from the description.',
                     style: theme.textTheme.bodySmall,
                   ),
                 ),

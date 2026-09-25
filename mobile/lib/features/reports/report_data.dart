@@ -17,8 +17,10 @@ List<YearMonth> monthsEnding(YearMonth to, int count) {
 /// fold into "Other" (same rule on the web, web/src/lib/reports.ts).
 const int kTrendTopCategories = 5;
 
-/// "Other" in the trend: a neutral grey that is not in the category palette.
-const Color kOtherSeriesColor = Color(0xFFB0BEC5);
+/// "Other" in the trend: a neutral grey that is not in the category palette,
+/// dark enough (3:1 or more) to show against every surface in every theme.
+/// Same value on the web.
+const Color kOtherSeriesColor = Color(0xFF7F8C93);
 
 /// One row of the spending-by-category trend: a category (or Uncategorized,
 /// or Other) with its total in each month.

@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/errors.dart';
 import '../../core/india_time.dart';
@@ -18,7 +19,8 @@ import 'txn_filter.dart';
 
 /// Dense, date-grouped list for one month, or (while searching) for every
 /// month. Filters narrow it to a type and/or a category, Uncategorized
-/// included. Updates live via Realtime.
+/// included; the same menu sorts it by date or amount. Updates live via
+/// Realtime.
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
 
@@ -56,6 +58,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final searchOpen = search != null;
     final query = search?.trim() ?? '';
     final filter = ref.watch(txnFilterProvider);
+    final sort = ref.watch(txnSortProvider);
     final month = ref.watch(selectedMonthProvider);
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     final categories = ref.watch(categoriesProvider).value ?? const <Category>[];
@@ -90,7 +93,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               ref.read(revisionsProvider.notifier).bumpAll();
               await ref.read(allTransactionsProvider.future);
             },
-            child: _GroupedList(txns: matches!, accounts: accountsById, categories: categoriesById),
+            child: _GroupedList(txns: matches!, sort: sort, accounts: accountsById, categories: categoriesById),
           ),
         AsyncValue(:final error?) => LoadError(
             message: describeError(error),
@@ -112,7 +115,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               ref.read(revisionsProvider.notifier).bumpAll();
               await ref.read(monthTransactionsProvider(month).future);
             },
-            child: _GroupedList(txns: shown!, accounts: accountsById, categories: categoriesById),
+            child: _GroupedList(txns: shown!, sort: sort, accounts: accountsById, categories: categoriesById),
           ),
         AsyncValue(:final error?) => LoadError(
             message: describeError(error),
@@ -166,7 +169,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 icon: const Icon(Icons.search),
                 onPressed: ref.read(txnSearchProvider.notifier).open,
               ),
-            _FilterMenu(filter: filter, categories: categories, color: fg),
+            _FilterMenu(filter: filter, sort: sort, categories: categories, color: fg),
           ],
           bottom: query.isNotEmpty
               ? null
@@ -187,7 +190,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 onUncategorized: () => ref.read(txnFilterProvider.notifier).set(const TxnFilter.uncategorized()),
               ),
             ?status,
-            if (filter.isActive) _ActiveFilters(filter: filter, categories: categories),
+            if (filter.isActive || sort != TxnSort.newest)
+              _ActiveFilters(filter: filter, sort: sort, categories: categories),
             const Divider(height: 1),
             Expanded(child: list),
           ],
@@ -262,15 +266,24 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
-/// The app bar's filter button: one menu with the type (All / Expenses /
-/// Income / Transfers) and the category (Uncategorized and every category
-/// of the chosen type, archived ones last since only older entries use them).
+/// The app bar's filter button: one menu with the order (newest, oldest,
+/// largest or smallest amount first), the type (All / Expenses / Income /
+/// Transfers) and the category (Uncategorized and every category of the
+/// chosen type, archived ones last since only older entries use them).
 class _FilterMenu extends ConsumerWidget {
-  const _FilterMenu({required this.filter, required this.categories, required this.color});
+  const _FilterMenu({required this.filter, required this.sort, required this.categories, required this.color});
 
   final TxnFilter filter;
+  final TxnSort sort;
   final List<Category> categories;
   final Color color;
+
+  static const _sortIcons = {
+    TxnSort.newest: Icons.arrow_downward,
+    TxnSort.oldest: Icons.arrow_upward,
+    TxnSort.largest: Icons.trending_down,
+    TxnSort.smallest: Icons.trending_up,
+  };
 
   static const _types = <(TxnType?, String)>[
     (null, 'All types'),
@@ -279,10 +292,14 @@ class _FilterMenu extends ConsumerWidget {
     (TxnType.transfer, 'Transfers'),
   ];
 
-  // Menu values: 'type:<db|all>' or 'category:<id|all|uncategorized>'.
+  // Menu values: 'sort:<name>', 'type:<db|all>' or 'category:<id|all|uncategorized>'.
   void _apply(WidgetRef ref, String value) {
     final notifier = ref.read(txnFilterProvider.notifier);
     final (kind, arg) = (value.split(':').first, value.split(':').last);
+    if (kind == 'sort') {
+      ref.read(txnSortProvider.notifier).set(TxnSort.values.byName(arg));
+      return;
+    }
     if (kind == 'type') {
       final type = arg == 'all' ? null : TxnType.fromDb(arg);
       // Transfers have no category, so picking them drops the category.
@@ -326,14 +343,18 @@ class _FilterMenu extends ConsumerWidget {
 
     return PopupMenuButton<String>(
       key: const Key('txn-filter'),
-      tooltip: 'Filter by type or category',
+      tooltip: 'Sort, or filter by type or category',
       icon: Badge(
-        isLabelVisible: filter.isActive,
+        isLabelVisible: filter.isActive || sort != TxnSort.newest,
         smallSize: 8,
         child: Icon(filter.isActive ? Icons.filter_alt : Icons.filter_alt_outlined, color: color),
       ),
       onSelected: (v) => _apply(ref, v),
       itemBuilder: (context) => [
+        heading('Sort'),
+        for (final s in TxnSort.values)
+          item('sort:${s.name}', sort == s, Icon(_sortIcons[s], size: 20), s.label),
+        const PopupMenuDivider(),
         heading('Type'),
         for (final (type, label) in _types)
           item('type:${type?.db ?? 'all'}', filter.type == type,
@@ -353,12 +374,14 @@ class _FilterMenu extends ConsumerWidget {
   }
 }
 
-/// What the list is narrowed to, e.g. "Expenses · Uncategorized", with
-/// Clear. Only shown while a filter is on, so the plain list stays as dense.
+/// What the list is narrowed to, e.g. "Expenses · Uncategorized", and the
+/// order when it isn't the usual newest first, with Clear (which resets
+/// both). Only shown while one is on, so the plain list stays as dense.
 class _ActiveFilters extends ConsumerWidget {
-  const _ActiveFilters({required this.filter, required this.categories});
+  const _ActiveFilters({required this.filter, required this.sort, required this.categories});
 
   final TxnFilter filter;
+  final TxnSort sort;
   final List<Category> categories;
 
   @override
@@ -380,11 +403,18 @@ class _ActiveFilters extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
       child: Row(
         children: [
-          Icon(Icons.filter_alt, size: 16, color: theme.colorScheme.onSecondaryContainer),
+          Icon(
+            filter.isActive ? Icons.filter_alt : Icons.sort,
+            size: 16,
+            color: theme.colorScheme.onSecondaryContainer,
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              'Showing only: ${parts.join(' · ')}',
+              [
+                if (sort != TxnSort.newest) sort.label,
+                if (parts.isNotEmpty) 'Showing only: ${parts.join(' · ')}',
+              ].join(' · '),
               key: const Key('active-filters'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -393,7 +423,10 @@ class _ActiveFilters extends ConsumerWidget {
           ),
           TextButton(
             key: const Key('filter-clear'),
-            onPressed: ref.read(txnFilterProvider.notifier).clear,
+            onPressed: () {
+              ref.read(txnFilterProvider.notifier).clear();
+              ref.read(txnSortProvider.notifier).set(TxnSort.newest);
+            },
             child: const Text('Clear'),
           ),
         ],
@@ -431,28 +464,39 @@ class _NoMatches extends StatelessWidget {
   }
 }
 
+/// Newest or oldest first: grouped by day, each day with its count and
+/// spending. By amount: one flat list, each row with its date.
 class _GroupedList extends ConsumerWidget {
-  const _GroupedList({required this.txns, required this.accounts, required this.categories});
+  const _GroupedList({required this.txns, required this.sort, required this.accounts, required this.categories});
 
   final List<Txn> txns;
+  final TxnSort sort;
   final Map<String, Account> accounts;
   final Map<String, Category> categories;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hidden = ref.watch(hiddenTxnIdsProvider);
-    final byDay = groupBy(txns.where((t) => !hidden.contains(t.id)), (Txn t) => t.date);
-    final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+    final sorted = sortTxns(txns.where((t) => !hidden.contains(t.id)), sort);
     final clock = ref.read(clockProvider);
 
     final children = <Widget>[];
-    for (final day in days) {
-      final items = byDay[day]!;
-      final spent = items.where((t) => t.type == TxnType.expense).fold<int>(0, (s, t) => s + t.amountPaise);
-      children.add(_DayHeader(label: friendlyDate(day, clock: clock), spentPaise: spent, count: items.length));
-      for (final t in items) {
-        children.add(_TxnRow(txn: t, accounts: accounts, categories: categories));
+    if (sort.byAmount) {
+      final today = indiaToday(clock);
+      for (final t in sorted) {
+        children.add(_TxnRow(txn: t, accounts: accounts, categories: categories, today: today));
         children.add(const Divider(height: 1, indent: 12));
+      }
+    } else {
+      // Days come out in the list's order (newest or oldest first).
+      final byDay = groupBy(sorted, (Txn t) => t.date);
+      for (final MapEntry(key: day, value: items) in byDay.entries) {
+        final spent = items.where((t) => t.type == TxnType.expense).fold<int>(0, (s, t) => s + t.amountPaise);
+        children.add(_DayHeader(label: friendlyDate(day, clock: clock), spentPaise: spent, count: items.length));
+        for (final t in items) {
+          children.add(_TxnRow(txn: t, accounts: accounts, categories: categories));
+          children.add(const Divider(height: 1, indent: 12));
+        }
       }
     }
     return ListView(
@@ -490,11 +534,15 @@ class _DayHeader extends StatelessWidget {
 }
 
 class _TxnRow extends ConsumerWidget {
-  const _TxnRow({required this.txn, required this.accounts, required this.categories});
+  const _TxnRow({required this.txn, required this.accounts, required this.categories, this.today});
 
   final Txn txn;
   final Map<String, Account> accounts;
   final Map<String, Category> categories;
+
+  /// Set when the list isn't grouped by day: the row shows its own date
+  /// (with the year when it isn't this year's).
+  final DateTime? today;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -584,10 +632,22 @@ class _TxnRow extends ConsumerWidget {
                     const SizedBox(height: 3),
                     Row(
                       children: [
+                        if (today case final today?) ...[
+                          Text(
+                            DateFormat(t.date.year == today.year ? 'd MMM' : 'd MMM yyyy').format(t.date),
+                            key: Key('txn-date-${t.id}'),
+                            style: detailStyle,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
                         Flexible(child: categoryLabel),
                         if (t.autoCategorized) ...[
                           const SizedBox(width: 4),
-                          Text('auto', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+                          Text(
+                            'auto',
+                            key: Key('txn-auto-${t.id}'),
+                            style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                          ),
                         ],
                         const SizedBox(width: 8),
                         const Spacer(),
@@ -605,7 +665,9 @@ class _TxnRow extends ConsumerWidget {
                             style: detailStyle,
                           ),
                         ],
-                        if (t.paymentMethod != null) ...[
+                        // Not for transfers: the two accounts already fill
+                        // the line on a 360 dp phone.
+                        if (t.paymentMethod != null && t.type != TxnType.transfer) ...[
                           const SizedBox(width: 6),
                           _Detail(icon: t.paymentMethod!.icon, text: t.paymentMethod!.label, style: detailStyle),
                         ],

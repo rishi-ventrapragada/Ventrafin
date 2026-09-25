@@ -23,15 +23,24 @@ Profile _with({bool? daily, bool? bills, int? days, TimeOfDay? time}) => Profile
   billReminderDaysBefore: days ?? 3,
 );
 
+/// A bill whose next three due dates are [dates] (as `get_bill_schedule`
+/// sends them), by default the 10th of Oct, Nov and Dec 2026. With
+/// [dates] explicitly null, the schedule has no upcoming dates (the
+/// function before audit round 2).
 Bill bill(
   String id, {
   int dueDay = 10,
-  YearMonth nextMonth = const YearMonth(2026, 10),
+  List<DateTime>? dates = const [],
   bool reminder = true,
   String name = 'BESCOM',
   BillKind kind = BillKind.utility,
 }) {
-  final due = billDueDate(nextMonth, dueDay);
+  final upcoming = dates == null
+      ? null
+      : dates.isEmpty
+      ? [for (final m in [10, 11, 12]) DateTime(2026, m, dueDay)]
+      : dates;
+  final due = upcoming?.first ?? DateTime(2026, 10, dueDay);
   return Bill(
     id: id,
     name: name,
@@ -41,11 +50,12 @@ Bill bill(
     accountId: 'acc-bank',
     categoryId: null,
     reminderEnabled: reminder,
-    paidThroughMonth: nextMonth.previous,
+    paidThroughMonth: YearMonth.of(due).previous,
     nextDueDate: due,
     daysUntil: due.difference(DateTime(2026, 9, 25)).inDays,
     status: BillStatus.upcoming,
     overdueCount: 0,
+    upcomingDueDates: upcoming,
   );
 }
 
@@ -54,14 +64,7 @@ List<String> _times(List<PlannedReminder> plan, ReminderKind kind) => [
 ];
 
 void main() {
-  group('due dates (same vectors as private.bill_due_date in the pgTAP tests)', () {
-    test('clamped to the end of short months', () {
-      expect(billDueDate(const YearMonth(2026, 2), 31), DateTime(2026, 2, 28));
-      expect(billDueDate(const YearMonth(2028, 2), 30), DateTime(2028, 2, 29));
-      expect(billDueDate(const YearMonth(2026, 4), 31), DateTime(2026, 4, 30));
-      expect(billDueDate(const YearMonth(2026, 4), 15), DateTime(2026, 4, 15));
-    });
-
+  group('due days', () {
     test('labels', () {
       expect(dueDayLabel(1), '1st of every month');
       expect(dueDayLabel(2), '2nd of every month');
@@ -149,7 +152,9 @@ void main() {
       // Due 27 Sep (2 days away): the 24 Sep "ahead" reminder has passed.
       final soon = planReminders(
         profile: _with(daily: false),
-        bills: [bill('b1', dueDay: 27, nextMonth: const YearMonth(2026, 9))],
+        bills: [
+          bill('b1', dueDay: 27, dates: [DateTime(2026, 9, 27), DateTime(2026, 10, 27), DateTime(2026, 11, 27)]),
+        ],
         now: _now,
       );
       expect(_times(soon, ReminderKind.billDue).first, '2026-09-27T09:00:00.000');
@@ -158,16 +163,20 @@ void main() {
       // October and November still get their reminders.
       final overdue = planReminders(
         profile: _with(daily: false),
-        bills: [bill('b1', dueDay: 5, nextMonth: const YearMonth(2026, 9))],
+        bills: [
+          bill('b1', dueDay: 5, dates: [DateTime(2026, 9, 5), DateTime(2026, 10, 5), DateTime(2026, 11, 5)]),
+        ],
         now: _now,
       );
       expect(_times(overdue, ReminderKind.billDue), ['2026-10-05T09:00:00.000', '2026-11-05T09:00:00.000']);
     });
 
-    test('due day 31 follows short months', () {
+    test('scheduled on the dates the database sends (it clamps due day 31 to short months)', () {
       final plan = planReminders(
         profile: _with(daily: false, days: 0),
-        bills: [bill('b1', dueDay: 31, nextMonth: const YearMonth(2027, 1))],
+        bills: [
+          bill('b1', dueDay: 31, dates: [DateTime(2027, 1, 31), DateTime(2027, 2, 28), DateTime(2027, 3, 31)]),
+        ],
         now: _now,
       );
       expect(_times(plan, ReminderKind.billDue), [
@@ -175,6 +184,25 @@ void main() {
         '2027-02-28T09:00:00.000',
         '2027-03-31T09:00:00.000',
       ]);
+    });
+
+    test('no upcoming dates from the database (older function): just the next due date', () {
+      final b = bill('b1', dates: null);
+      expect(b.upcomingDueDates, [DateTime(2026, 10, 10)]);
+      final plan = planReminders(profile: _with(daily: false), bills: [b], now: _now);
+      expect(_times(plan, ReminderKind.billAhead), ['2026-10-07T09:00:00.000']);
+      expect(_times(plan, ReminderKind.billDue), ['2026-10-10T09:00:00.000']);
+    });
+
+    test('never more than three months ahead, even if more dates are sent', () {
+      final plan = planReminders(
+        profile: _with(daily: false, days: 0),
+        bills: [
+          bill('b1', dates: [for (final m in [10, 11, 12]) DateTime(2026, m, 10), DateTime(2027, 1, 10)]),
+        ],
+        now: _now,
+      );
+      expect(plan, hasLength(kBillMonthsAhead));
     });
 
     test('several bills get distinct ids', () {
@@ -229,12 +257,39 @@ void main() {
         'days_until': -33,
         'status': 'overdue',
         'overdue_count': 2,
+        'upcoming_due_dates': ['2026-02-28', '2026-03-31', '2026-04-30'],
       });
       expect(b.status, BillStatus.overdue);
+      expect(b.upcomingDueDates, [DateTime(2026, 2, 28), DateTime(2026, 3, 31), DateTime(2026, 4, 30)]);
       expect(b.nextDueMonth, const YearMonth(2026, 2));
       expect(b.paidThroughMonth, const YearMonth(2026, 1));
       expect(b.toDraft().toRow(), containsPair('due_day', 31));
       expect(b.toDraft().toRow().containsKey('paid_through_month'), isFalse);
+    });
+
+    test('Bill.fromScheduleRow without upcoming_due_dates (missing, null or empty): the next due date', () {
+      final row = {
+        'id': 'b1',
+        'name': 'BESCOM',
+        'kind': 'utility',
+        'amount_paise': 145000,
+        'due_day': 10,
+        'account_id': 'acc',
+        'category_id': null,
+        'reminder_enabled': true,
+        'paid_through_month': '2026-09-01',
+        'next_due_date': '2026-10-10',
+        'days_until': 15,
+        'status': 'upcoming',
+        'overdue_count': 0,
+      };
+      for (final extra in <Map<String, dynamic>>[
+        {},
+        {'upcoming_due_dates': null},
+        {'upcoming_due_dates': <String>[]},
+      ]) {
+        expect(Bill.fromScheduleRow({...row, ...extra}).upcomingDueDates, [DateTime(2026, 10, 10)], reason: '$extra');
+      }
     });
   });
 }

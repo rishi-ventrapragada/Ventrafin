@@ -12,8 +12,9 @@ import '../../data/providers.dart';
 import '../dashboard/category_breakdown.dart';
 import '../transactions/txn_filter.dart';
 
-/// Dashboard: this month's headline numbers (from `get_month_totals`), the
-/// spending-by-category breakdown, and quick actions. Past months and
+/// Dashboard: this month's spending as the headline, this month against
+/// last (from `get_month_totals`), quick actions, then the
+/// spending-by-category breakdown. Past months and
 /// trends are on the Reports screen.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -25,19 +26,26 @@ class DashboardScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final t = totals.value;
 
+    // Label and two amount columns sharing the width; amounts shrink to
+    // fit rather than wrap at a large font size.
+    Widget amount(String text, TextStyle? style) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerRight,
+          child: Text(text, maxLines: 1, style: style),
+        );
     Widget row(String label, int? now, int? before, Color color) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(children: [
-            Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-            SizedBox(
-              width: 120,
-              child: Text(now == null ? '…' : formatRupees(now),
-                  textAlign: TextAlign.right, style: theme.textTheme.titleSmall?.copyWith(color: color)),
+            Expanded(flex: 4, child: Text(label, style: theme.textTheme.bodyMedium)),
+            Expanded(
+              flex: 5,
+              child: amount(now == null ? '…' : formatRupeesCompact(now),
+                  theme.textTheme.titleSmall?.copyWith(color: color)),
             ),
-            SizedBox(
-              width: 110,
-              child: Text(before == null ? '' : formatRupeesCompact(before),
-                  textAlign: TextAlign.right, style: theme.textTheme.bodySmall),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 5,
+              child: amount(before == null ? '' : formatRupeesCompact(before), theme.textTheme.bodySmall),
             ),
           ]),
         );
@@ -63,16 +71,7 @@ class DashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Expanded(child: Text(month.label, style: theme.textTheme.titleMedium)),
-                      SizedBox(
-                          width: 120,
-                          child: Text('This month', textAlign: TextAlign.right, style: theme.textTheme.labelSmall)),
-                      SizedBox(
-                          width: 110,
-                          child: Text('Last month', textAlign: TextAlign.right, style: theme.textTheme.labelSmall)),
-                    ]),
-                    const Divider(),
+                    Text(month.label, style: theme.textTheme.titleSmall),
                     if (totals.hasError && t == null)
                       LoadError(
                         compact: true,
@@ -80,6 +79,31 @@ class DashboardScreen extends ConsumerWidget {
                         onRetry: () => ref.invalidate(monthTotalsProvider(month)),
                       )
                     else ...[
+                      // The number that matters most: spent so far this month.
+                      Text('Spent this month', style: theme.textTheme.labelMedium),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          t == null ? '…' : formatRupeesCompact(t.expensePaise),
+                          key: const Key('dashboard-spent'),
+                          maxLines: 1,
+                          style: theme.textTheme.headlineMedium
+                              ?.copyWith(color: kExpenseColor, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        const Spacer(flex: 4),
+                        Expanded(
+                            flex: 5,
+                            child: Text('This month', textAlign: TextAlign.right, style: theme.textTheme.labelSmall)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            flex: 5,
+                            child: Text('Last month', textAlign: TextAlign.right, style: theme.textTheme.labelSmall)),
+                      ]),
+                      const Divider(height: 8),
                       row('Spent', t?.expensePaise, t?.lastExpensePaise, kExpenseColor),
                       row('Income', t?.incomePaise, t?.lastIncomePaise, kIncomeColor),
                       row('Net', t?.netPaise, t == null ? null : t.lastIncomePaise - t.lastExpensePaise,
@@ -106,25 +130,29 @@ class DashboardScreen extends ConsumerWidget {
                   },
                 ),
               ),
+            // The actions stay near the top, whatever the breakdown's height.
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    key: const Key('dashboard-add'),
+                    onPressed: () => context.go('/add'),
+                    icon: const Icon(Icons.add),
+                    label: const Text("Add today's expenses"),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.go('/transactions'),
+                    icon: const Icon(Icons.receipt_long),
+                    label: const Text('Transactions'),
+                  ),
+                ),
+              ]),
+            ),
             CategoryBreakdownCard(month: month),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => context.go('/add'),
-                  icon: const Icon(Icons.add),
-                  label: const Text("Add today's expenses"),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.go('/transactions'),
-                  icon: const Icon(Icons.receipt_long),
-                  label: const Text('Transactions'),
-                ),
-              ),
-            ]),
             const SizedBox(height: 8),
             TextButton.icon(
               key: const Key('dashboard-reports'),

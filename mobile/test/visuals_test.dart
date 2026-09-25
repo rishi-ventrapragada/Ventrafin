@@ -213,7 +213,7 @@ void main() {
 
       // Still next to the existing this-vs-last-month totals.
       expect(find.text('This month'), findsWidgets);
-      expect(find.text('₹620.00'), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('dashboard-spent'))).data, '₹620');
     });
 
     testWidgets('no spending yet', (tester) async {
