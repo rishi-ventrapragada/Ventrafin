@@ -2,6 +2,8 @@
 
 This file orients Claude Code (or any future contributor) working in this repository. Read `PRD.md` for what to build, `ARCHITECTURE.md` for how the system fits together, and `DECISIONS.md` for why it's built this way and what alternatives were rejected.
 
+AUDIT.md tracks open audit findings. Check it before starting work and update statuses as items are fixed.
+
 ## What this repo is
 
 Ventrafin is a home finance tracker built for one non-technical user ("Dad" throughout these docs), who splits his time between an Android phone and a Windows PC. There are two client apps sharing one Supabase backend:
@@ -30,6 +32,7 @@ CLAUDE.md
 PRD.md
 ARCHITECTURE.md
 DECISIONS.md
+AUDIT.md             -- audit findings with IDs and statuses (living tracker)
 ```
 
 ## Ground rules
@@ -55,7 +58,7 @@ The hosted project is managed through the **Supabase MCP server** (`.mcp.json`, 
 - **Match the version after applying.** `apply_migration` stamps its own version (the apply time), so rename the file to `<version from list_migrations>_<name>.sql` and confirm the file's SHA-256 equals the stored statements (`supabase_migrations.schema_migrations`). Repo and hosted history must match exactly.
 - **Never run DDL through `execute_sql`.** `execute_sql` is for read-only checks and for the rolled-back test runs below. Don't edit applied migration files; fix things with a new migration.
 - **After applying, verify:** `list_migrations` must match `/supabase/migrations`, and `get_advisors` (security + performance) should be clean. Fix any findings with new migration files.
-- **Tests** (`/supabase/tests/*.test.sql`, pgTAP) run via MCP inside a transaction that always rolls back, so no test data is left behind. `execute_sql` runs a script as one transaction and returns only the last result, so send the file's statements without `begin;`/`create extension`/`finish(); rollback;`, ending instead with a `do` block that raises the counts (recipe in `/supabase/README.md`). The raised error both reports the result and forces the rollback. pgTAP itself is installed by a migration.
+- **Tests** (`/supabase/tests/*.test.sql`, pgTAP) insert test users, so they can't run through the read-only MCP: run them with `npm run db:test` (session-pooler string in an env var for that terminal only; `/supabase/README.md`), or via MCP while write access is switched on for a migration. Via MCP they run inside a transaction that always rolls back, so no test data is left behind. `execute_sql` runs a script as one transaction and returns only the last result, so send the file's statements without `begin;`/`create extension`/`finish(); rollback;`, ending instead with a `do` block that raises the counts (recipe in `/supabase/README.md`). The raised error both reports the result and forces the rollback. pgTAP itself is installed by a migration.
 - **No real data, no user data.** Never insert real data, and never read users' rows (transactions, accounts, categories, etc.), unless the human explicitly asks. Schema/metadata queries are fine.
 - **Secrets stay out of the repo.** The MCP server authenticates via OAuth; `.mcp.json` holds only the project ref. Never write the service_role key, the database password, or OAuth client secrets into any file. If backups are turned on, their credentials (`BACKUP_DB_URL`, `BACKUP_PASSPHRASE`) live only in GitHub Actions secrets.
 - **Read-only once Dad is using the app.** When Dad starts using the app for real, the MCP connection must be switched to read-only mode (add `&read_only=true` to the server URL in `.mcp.json`). After that, schema changes need the human to deliberately re-enable write access for that change.
