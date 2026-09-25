@@ -39,11 +39,17 @@ export function toAppError(err: { message?: string; code?: string | null; status
   return new AppError(message, code, network)
 }
 
+/** Why the last active account can't be archived (the database's own wording). */
+export const ACTIVE_ACCOUNT_NEEDED = 'Keep at least one active account.'
+
 /** A short explanation for the person using the app. */
 export function describeError(e: unknown): string {
   if (e instanceof OfflineError) return e.message
   if (isNetworkError(e)) return "Couldn't reach the server. Check your internet connection and try again."
   if (e instanceof AppError) {
+    // The trigger that keeps one account active (accounts_one_active) says
+    // exactly what to do; other 23514s keep the general wording below.
+    if (/keep at least one active account/i.test(e.message)) return ACTIVE_ACCOUNT_NEEDED
     switch (e.code) {
       case '42501':
         return "You don't have permission to do that. Try signing out and back in."

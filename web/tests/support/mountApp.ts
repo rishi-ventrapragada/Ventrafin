@@ -7,7 +7,8 @@ import { defineComponent, h, ref, shallowRef } from 'vue'
 import { createMemoryHistory, RouterView } from 'vue-router'
 import { APP_CONTEXT, createAppContext, type AppContext } from '@/data/appContext'
 import type { AppUser, AuthService } from '@/data/auth'
-import { createMemoryEntryPrefs, type EntryPrefs } from '@/data/entryPrefs'
+import type { EntryPrefs } from '@/data/entryPrefs'
+import { createMemoryEntryPrefs } from './memoryEntryPrefs'
 import type { PasskeyService } from '@/data/passkeys'
 import { createAppRouter } from '@/router'
 import { installUi } from '@/ui'
@@ -35,6 +36,12 @@ export interface MountOptions {
   /** Subscribe to the fake repository's change feed (like Supabase Realtime). */
   realtime?: boolean
   passkeys?: PasskeyService
+  /**
+   * Run Vue's transitions for real instead of test-utils' stubs, so a
+   * PrimeVue Dialog goes through its show hooks (that is where it starts
+   * listening for Escape). Wait with `nextFrames()` after opening one.
+   */
+  transitions?: boolean
 }
 
 export async function mountApp({
@@ -45,6 +52,7 @@ export async function mountApp({
   signedIn = true,
   realtime = false,
   passkeys,
+  transitions = false,
 }: MountOptions) {
   const onlineRef = ref(online)
   const auth = fakeAuth(signedIn ? undefined : null)
@@ -58,6 +66,7 @@ export async function mountApp({
     global: {
       plugins: [{ install: installUi }, router],
       provide: { [APP_CONTEXT as symbol]: ctx },
+      ...(transitions ? { stubs: { transition: false } } : {}),
     },
   })
   mounted.push(() => {
@@ -85,6 +94,12 @@ export async function settle() {
   }
 }
 
+/** Lets real transitions (see `transitions`) finish: a few animation frames. */
+export async function nextFrames() {
+  await new Promise((r) => setTimeout(r, 80))
+  await settle()
+}
+
 /** The grid cell input at (row, column). */
 export function cell(row: number, col: number): HTMLInputElement {
   const el = document.querySelector<HTMLInputElement>(`input[data-row="${row}"][data-col="${col}"]`)
@@ -100,5 +115,12 @@ export function buttonByText(text: string | RegExp): HTMLButtonElement {
   const buttons = [...document.querySelectorAll<HTMLButtonElement>('button')]
   const b = buttons.find((x) => (typeof text === 'string' ? x.textContent?.trim() === text : text.test(x.textContent ?? '')))
   if (!b) throw new Error(`No button "${String(text)}". Buttons: ${buttons.map((x) => x.textContent?.trim()).join(' | ')}`)
+  return b
+}
+
+/** A button of the open confirm dialog: `accept` (e.g. Delete) or `reject` (Cancel). */
+export function confirmButton(which: 'accept' | 'reject'): HTMLButtonElement {
+  const b = document.querySelector<HTMLButtonElement>(`.p-confirmdialog-${which}-button`)
+  if (!b) throw new Error(`No confirm dialog ${which} button`)
   return b
 }

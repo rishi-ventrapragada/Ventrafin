@@ -1,12 +1,14 @@
 <script setup lang="ts">
 // Preview of rows pasted from Excel. Shows which column Ventrafin thinks is
 // which (changeable), every row as it will be saved, and marks rows that
-// can't be saved and why. Nothing is saved until the user confirms.
+// can't be saved and why. Nothing is saved until the user confirms. Opens
+// with the cursor in the paste box (Enter there is a new line).
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, ref, toRef, useId, watch } from 'vue'
 import RowsPreview from '@/components/import/RowsPreview.vue'
 import { spentIn, usePreviewRows } from '@/components/import/previewRows'
+import { submitOnEnter } from '@/directives'
 import type { EntryContext, RawRow } from '@/lib/entryRow'
 import { formatRupees } from '@/lib/money'
 import { readPaste, type PasteDefaults } from '@/lib/paste'
@@ -28,6 +30,7 @@ const emit = defineEmits<{
   toGrid: [rows: RawRow[]]
 }>()
 
+const formId = useId()
 const text = ref(props.initialText)
 watch(
   () => props.initialText,
@@ -37,6 +40,15 @@ watch(
 const table = computed(() => readPaste(text.value, props.context.today))
 const { roles, nonBlank, ready, problems } = usePreviewRows(table, toRef(props, 'context'), toRef(props, 'defaults'))
 const spent = computed(() => spentIn(ready.value))
+
+function save() {
+  if (props.saving || ready.value.length === 0) return
+  emit(
+    'save',
+    ready.value.map((r) => r.raw),
+    problems.value.map((r) => r.raw),
+  )
+}
 </script>
 
 <template>
@@ -49,7 +61,7 @@ const spent = computed(() => spentIn(ready.value))
     :close-on-escape="!saving"
     :closable="!saving"
   >
-    <div class="flex flex-col gap-3">
+    <form :id="formId" class="flex flex-col gap-3" @submit.prevent="save" @keydown="submitOnEnter">
       <div>
         <label for="paste-box" class="mb-1 block text-sm font-semibold text-slate-700">
           Copy the rows in Excel, click in the box and press <kbd>Ctrl</kbd>+<kbd>V</kbd>
@@ -58,10 +70,11 @@ const spent = computed(() => spentIn(ready.value))
           id="paste-box"
           v-model="text"
           rows="3"
-          class="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-sm outline-none focus:border-primary focus:bg-white"
+          class="focus-ring w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-sm focus:border-primary focus:bg-white"
           placeholder="Date	Description	Amount	Category	Paid by"
           spellcheck="false"
           data-testid="paste-box"
+          autofocus
         />
       </div>
 
@@ -73,7 +86,7 @@ const spent = computed(() => spentIn(ready.value))
         </div>
         <RowsPreview v-model:roles="roles" :table="table" :rows="nonBlank" :context="context" />
       </template>
-    </div>
+    </form>
 
     <template #footer>
       <div class="flex w-full flex-wrap items-center gap-2">
@@ -97,11 +110,12 @@ const spent = computed(() => spentIn(ready.value))
           @click="emit('toGrid', nonBlank.map((r) => r.raw))"
         />
         <Button
+          type="submit"
+          :form="formId"
           :label="`Save ${ready.length} row${ready.length === 1 ? '' : 's'}`"
           :loading="saving"
           :disabled="ready.length === 0"
           data-testid="paste-save"
-          @click="emit('save', ready.map((r) => r.raw), problems.map((r) => r.raw))"
         />
       </div>
     </template>

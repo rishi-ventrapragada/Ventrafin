@@ -8,12 +8,12 @@ import { RouterLink, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ChangeCell from '@/components/ChangeCell.vue'
 import DonutChart from '@/components/DonutChart.vue'
+import LoadError from '@/components/LoadError.vue'
 import MonthSwitcher from '@/components/MonthSwitcher.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
 import { useApp } from '@/data/appContext'
 import { UNCATEGORIZED_LOOK, categoryIconKey, readableTextColor } from '@/lib/categoryStyle'
 import { compareMonths, monthKey, monthLabel, monthOf } from '@/lib/dates'
-import { describeError } from '@/lib/errors'
 import { formatRupees, formatRupeesCompact } from '@/lib/money'
 import type { Category } from '@/lib/models'
 import { EXPENSE_COLOR, INCOME_COLOR } from '@/lib/theme'
@@ -108,9 +108,7 @@ function openUncategorized() {
       <div class="flex flex-col gap-3">
         <section class="card p-3" data-testid="month-totals">
           <h2 class="card-title mb-2">{{ monthLabel(month) }}</h2>
-          <p v-if="totals.error.value && !t" class="text-sm text-expense" role="alert">
-            Couldn't load totals. {{ describeError(totals.error.value) }}
-          </p>
+          <LoadError v-if="totals.error.value && !t" compact :error="totals.error.value" what="Couldn't load totals." @retry="totals.refresh()" />
           <table class="dense-table">
             <thead>
               <tr>
@@ -164,9 +162,13 @@ function openUncategorized() {
           <h2 class="card-title">Spending by category</h2>
           <span class="text-sm text-slate-600">{{ monthLabel(month) }} against the month before</span>
         </div>
-        <p v-if="comparison.error.value && !comparison.data.value" class="text-sm text-expense" role="alert">
-          Couldn't load the breakdown. {{ describeError(comparison.error.value) }}
-        </p>
+        <LoadError
+          v-if="comparison.error.value && !comparison.data.value"
+          compact
+          :error="comparison.error.value"
+          what="Couldn't load the breakdown."
+          @retry="comparison.refresh()"
+        />
         <p v-else-if="!comparison.data.value" class="muted py-6">Loading…</p>
         <p v-else-if="rows.length === 0" class="py-4 text-slate-600">Nothing spent yet in {{ monthLabel(month) }}.</p>
         <div v-else class="flex flex-col gap-4 min-[110rem]:flex-row min-[110rem]:items-start">

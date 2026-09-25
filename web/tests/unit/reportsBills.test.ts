@@ -10,7 +10,6 @@ import {
   formatRupeesAxis,
   monthsEnding,
   niceAxisStep,
-  percentChange,
   savedPercent,
   totalsFor,
 } from '@/lib/reports'
@@ -78,8 +77,6 @@ describe('reports', () => {
   it('percentages', () => {
     expect(savedPercent(10000, 2500)).toBe(75)
     expect(savedPercent(0, 2500)).toBeNull()
-    expect(percentChange(150, 100)).toBe(50)
-    expect(percentChange(5, 0)).toBeNull()
   })
 })
 

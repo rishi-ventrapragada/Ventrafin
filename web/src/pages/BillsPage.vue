@@ -11,6 +11,7 @@ import AccountAvatar from '@/components/AccountAvatar.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import BillDialog from '@/components/BillDialog.vue'
 import IconCircle from '@/components/IconCircle.vue'
+import LoadError from '@/components/LoadError.vue'
 import MarkPaidDialog from '@/components/MarkPaidDialog.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
 import { useApp } from '@/data/appContext'
@@ -70,18 +71,22 @@ async function toggleReminder(b: Bill) {
   }
 }
 
+/** Moves the paid-up-to month back one. A payment already logged stays in Transactions. */
 function markUnpaid(b: Bill) {
+  const month = monthLabel(b.paidThroughMonth)
   confirmDialog.require({
-    header: `Mark ${monthLabel(b.paidThroughMonth)} unpaid?`,
-    message: `${b.name} will show ${monthLabel(b.paidThroughMonth)} as due again. A payment already added stays in Transactions.`,
+    header: `Mark ${month} unpaid?`,
+    message: `${b.name} will show ${month} as due again. A payment already added stays in Transactions.`,
     acceptLabel: 'Mark unpaid',
     rejectLabel: 'Cancel',
+    defaultFocus: 'reject',
     rejectProps: { severity: 'secondary', outlined: true },
     accept: async () => {
       try {
         app.requireOnline()
         await app.repo.setBillPaidThrough(b.id, previousMonth(b.paidThroughMonth))
         app.bump(['recurring_bills'])
+        toast.add({ severity: 'success', summary: `Marked ${month} unpaid for ${b.name}`, life: 3000 })
       } catch (e) {
         toast.add({ severity: 'error', summary: 'Not changed', detail: describeError(e), life: 5000 })
       }
@@ -95,6 +100,7 @@ function remove(b: Bill) {
     message: 'Its reminders stop. Payments already added to Transactions stay there.',
     acceptLabel: 'Delete',
     rejectLabel: 'Cancel',
+    defaultFocus: 'reject',
     acceptProps: { severity: 'danger' },
     rejectProps: { severity: 'secondary', outlined: true },
     accept: async () => {
@@ -151,10 +157,7 @@ const kindOf = (b: Bill) => BILL_KINDS.find((k) => k.value === b.kind)!
       </div>
     </div>
 
-    <div v-if="bills.error.value && !bills.data.value" class="card flex items-center gap-3 p-4" role="alert">
-      <span>Couldn't load bills. {{ describeError(bills.error.value) }}</span>
-      <Button label="Retry" size="small" @click="bills.refresh()" />
-    </div>
+    <LoadError v-if="bills.error.value && !bills.data.value" :error="bills.error.value" what="Couldn't load bills." @retry="bills.refresh()" />
     <div v-else-if="!bills.data.value" class="muted">Loading…</div>
     <div v-else-if="list.length === 0" class="card flex items-center gap-4 p-6 text-slate-700" data-testid="bills-empty">
       <AppIcon name="event_note" :size="48" class="text-slate-500" />
@@ -213,10 +216,11 @@ const kindOf = (b: Bill) => BILL_KINDS.find((k) => k.value === b.kind)!
               <button
                 type="button"
                 class="ml-1 text-sm text-primary hover:underline"
+                :aria-label="`Mark ${monthLabel(b.paidThroughMonth)} unpaid for ${b.name}`"
                 :data-testid="`unpay-${b.id}`"
                 @click="markUnpaid(b)"
               >
-                undo
+                Mark unpaid
               </button>
             </td>
             <td class="text-center">

@@ -1,21 +1,25 @@
 <script setup lang="ts">
 // Add or edit a recurring bill. Same fields and rules as the phone's bill
-// form. The database fills in which month is owed first.
+// form. The database fills in which month is owed first. Opens on the name;
+// Enter saves; X or Escape asks before throwing away what was typed.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { useApp } from '@/data/appContext'
+import { submitOnEnter } from '@/directives'
 import { billNameError, dueDayLabel } from '@/lib/bills'
 import { describeError } from '@/lib/errors'
 import { formatAmountInput, parseRupeesToPaise } from '@/lib/money'
-import { BILL_KINDS, BILL_NAME_MAX, sortByName, type Bill, type BillKind } from '@/lib/models'
+import { BILL_KINDS, BILL_NAME_MAX, activeOnly, pickerLabel, sortByName, type Bill, type BillKind } from '@/lib/models'
 import AppIcon from './AppIcon.vue'
+import { useGuardedClose } from './useAsk'
 
 /** `undefined`: closed; `null`: a new bill; a bill: edit it. */
 const props = defineProps<{ bill: Bill | null | undefined }>()
 const emit = defineEmits<{ close: []; saved: [name: string] }>()
 
 const app = useApp()
+const formId = useId()
 
 const name = ref('')
 const kind = ref<BillKind>('utility')
@@ -29,6 +33,9 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 /** Generated once per opening, so retrying a failed save can't add the bill twice. */
 let newId = ''
+/** The form as it opened, to tell whether anything was changed. */
+let opened = ''
+const snapshot = () => JSON.stringify([name.value, kind.value, amount.value, dueDay.value, accountId.value, categoryId.value, reminder.value])
 
 watch(
   () => props.bill,
@@ -46,7 +53,7 @@ watch(
       reminder.value = b.reminderEnabled
     } else {
       newId = crypto.randomUUID()
-      const accounts = app.accounts.data.value ?? []
+      const accounts = activeOnly(app.accounts.data.value ?? [])
       name.value = ''
       kind.value = 'utility'
       amount.value = ''
@@ -55,16 +62,24 @@ watch(
       categoryId.value = ''
       reminder.value = true
     }
+    opened = snapshot()
   },
   { immediate: true },
 )
 
+const { requestClose, asking } = useGuardedClose(
+  () => snapshot() !== opened,
+  () => emit('close'),
+)
 const visible = computed({
   get: () => props.bill !== undefined,
   set: (v) => {
-    if (!v && !saving.value) emit('close')
+    if (!v && !saving.value && !asking.value) void requestClose()
   },
 })
+
+/** Active accounts, plus the bill's own if it has been archived since. */
+const accountChoices = computed(() => activeOnly(app.accounts.data.value ?? [], props.bill?.accountId))
 
 const nameError = computed(() => billNameError(name.value, BILL_NAME_MAX))
 const paise = computed(() => {
@@ -72,7 +87,7 @@ const paise = computed(() => {
   return p !== null && p > 0 ? p : null
 })
 const expenseCategories = computed(() =>
-  sortByName((app.categories.data.value ?? []).filter((c) => c.kind === 'expense' && (!c.archived || c.id === categoryId.value))),
+  sortByName(activeOnly(app.categories.data.value ?? [], props.bill?.categoryId).filter((c) => c.kind === 'expense')),
 )
 const masterOff = computed(() => app.profile.data.value?.billRemindersEnabled === false)
 
@@ -103,15 +118,15 @@ async function save() {
   }
 }
 
-const field = 'w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 outline-none focus:border-primary'
+const field = 'focus-ring w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 focus:border-primary'
 </script>
 
 <template>
   <Dialog v-model:visible="visible" modal :header="bill ? 'Edit bill' : 'Add bill'" :style="{ width: 'min(34rem, 96vw)' }">
-    <form class="flex flex-col gap-3" data-testid="bill-form" @submit.prevent="save">
+    <form :id="formId" class="flex flex-col gap-3" data-testid="bill-form" @submit.prevent="save" @keydown="submitOnEnter">
       <label class="flex flex-col gap-1">
         <span class="font-medium text-slate-700">Name</span>
-        <input v-model="name" :class="field" :maxlength="BILL_NAME_MAX + 10" data-testid="bill-name" autocomplete="off" />
+        <input v-model="name" :class="field" :maxlength="BILL_NAME_MAX + 10" data-testid="bill-name" autocomplete="off" autofocus />
         <span v-if="tried && nameError" class="text-sm text-expense">{{ nameError }}</span>
       </label>
       <div class="flex gap-2" role="radiogroup" aria-label="Kind">
@@ -147,14 +162,14 @@ const field = 'w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 
         <label class="flex flex-col gap-1">
           <span class="font-medium text-slate-700">Paid from</span>
           <select v-model="accountId" :class="field" data-testid="bill-account">
-            <option v-for="a in app.accounts.data.value ?? []" :key="a.id" :value="a.id">{{ a.name }}</option>
+            <option v-for="a in accountChoices" :key="a.id" :value="a.id">{{ pickerLabel(a) }}</option>
           </select>
         </label>
         <label class="flex flex-col gap-1">
           <span class="font-medium text-slate-700">Category</span>
           <select v-model="categoryId" :class="field" data-testid="bill-category">
             <option value="">Auto (from the name)</option>
-            <option v-for="c in expenseCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
+            <option v-for="c in expenseCategories" :key="c.id" :value="c.id">{{ pickerLabel(c) }}</option>
           </select>
         </label>
       </div>
@@ -171,7 +186,7 @@ const field = 'w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 
     </form>
     <template #footer>
       <Button label="Cancel" severity="secondary" text :disabled="saving" @click="emit('close')" />
-      <Button :label="bill ? 'Save' : 'Add bill'" :loading="saving" data-testid="bill-save" @click="save" />
+      <Button type="submit" :form="formId" :label="bill ? 'Save' : 'Add bill'" :loading="saving" data-testid="bill-save" />
     </template>
   </Dialog>
 </template>

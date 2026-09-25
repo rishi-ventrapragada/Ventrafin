@@ -2,17 +2,22 @@
 // Batch entry, like a spreadsheet (PRD § 4.2): blank rows to fill in with
 // Tab/Enter, today's date (India) and the last-used account and payment
 // method pre-filled, rows pasted from Excel previewed before saving, and
-// the category each saved row got shown right away.
+// the category each saved row got shown right away. Typed rows that aren't
+// saved yet are never thrown away silently: leaving the page asks first, and
+// closing or reloading the tab gets the browser's own "Leave site?" prompt.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import LoadError from '@/components/LoadError.vue'
 import EntryGrid from '@/components/add/EntryGrid.vue'
 import PasteDialog from '@/components/add/PasteDialog.vue'
 import SavedPanel from '@/components/add/SavedPanel.vue'
 import { newRowKey, type GridRow } from '@/components/add/gridRow'
+import { DISCARD_CHANGES, useAsk } from '@/components/useAsk'
 import { useApp } from '@/data/appContext'
 import { takeHandedOffRows } from '@/data/gridHandoff'
 import { formatDateIndian } from '@/lib/dates'
@@ -31,7 +36,7 @@ import {
   type RawRow,
 } from '@/lib/entryRow'
 import { describeError } from '@/lib/errors'
-import { methodLabel, type Txn } from '@/lib/models'
+import { activeOnly, methodLabel, type Txn } from '@/lib/models'
 
 /** Blank rows on a fresh page, and blank rows kept below the last filled one. */
 const INITIAL_ROWS = 8
@@ -40,17 +45,19 @@ const BLANK_TAIL = 3
 const app = useApp()
 const toast = useToast()
 const confirm = useConfirm()
+const { ask } = useAsk()
 
 const accounts = computed(() => app.accounts.data.value ?? [])
 const categories = computed(() => app.categories.data.value ?? [])
 const context = computed<EntryContext>(() => ({ accounts: accounts.value, categories: categories.value, today: app.today.value }))
 
 // The remembered account / method live in localStorage (not reactive), so
-// this counter makes `defaults` re-read them after a save.
+// this counter makes `defaults` re-read them after a save. New rows get an
+// active account: the remembered one only while it isn't archived.
 const prefsVersion = ref(0)
 const defaults = computed(() => {
   void prefsVersion.value
-  const list = accounts.value
+  const list = activeOnly(accounts.value)
   const account =
     list.find((a) => a.id === app.prefs.lastAccountId) ?? list.find((a) => a.type === 'cash') ?? list[0] ?? null
   const method = app.prefs.lastMethod
@@ -77,6 +84,8 @@ const edited = new Set<string>()
 const touched = ref(new Set<string>())
 const parsed = computed(() => rows.value.map((r) => parseEntryRow(r.raw, context.value)))
 const readyCount = computed(() => parsed.value.filter((p) => p.draft).length)
+/** Something typed or pasted that isn't saved yet (pre-filled defaults alone don't count). */
+const dirty = computed(() => parsed.value.some((p) => !p.blank))
 const problemRows = computed(() =>
   rows.value
     .map((row, i) => ({ row, i, p: parsed.value[i]! }))
@@ -274,7 +283,8 @@ function clearUnsaved() {
     header: 'Clear the grid?',
     message: `This removes ${filled} unsaved row${filled === 1 ? '' : 's'}. Saved transactions are not affected.`,
     acceptLabel: 'Clear',
-    rejectLabel: 'Keep',
+    rejectLabel: 'Cancel',
+    defaultFocus: 'reject',
     acceptProps: { severity: 'danger' },
     rejectProps: { severity: 'secondary', outlined: true },
     accept: reset,
@@ -291,6 +301,22 @@ function onPageKeydown(e: KeyboardEvent) {
     void save()
   }
 }
+
+// ------------------------------------------------------------ unsaved rows
+
+// Another page (sidebar, a link, Back): ask before the typed rows are lost.
+// Not when signed out, when nothing could be saved anyway.
+onBeforeRouteLeave(() => (!dirty.value || !app.auth.user.value ? true : ask(DISCARD_CHANGES)))
+
+// Closing the tab, F5, or typing another address: the browser asks.
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (!dirty.value) return
+  e.preventDefault()
+  // Older browsers need returnValue set to show their prompt.
+  e.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', onBeforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
 
 onMounted(() => {
   // Rows from a CSV import (Settings) that need fixing before they can be saved.
@@ -342,15 +368,12 @@ onMounted(() => {
       </div>
     </div>
 
-    <div
+    <LoadError
       v-if="app.accounts.error.value && accounts.length === 0"
-      class="card flex items-center gap-3 p-4 text-slate-700"
-      role="alert"
-    >
-      <AppIcon name="cloud_off" :size="32" class="text-expense" />
-      <span>Couldn't load your accounts. {{ describeError(app.accounts.error.value) }}</span>
-      <Button label="Retry" size="small" @click="app.accounts.refresh()" />
-    </div>
+      :error="app.accounts.error.value"
+      what="Couldn't load your accounts."
+      @retry="app.accounts.refresh()"
+    />
 
     <EntryGrid
       ref="grid"

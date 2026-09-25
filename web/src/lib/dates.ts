@@ -65,20 +65,6 @@ export function formatDateIndian(iso: string): string {
   return `${pad2(day)}/${pad2(month)}/${year}`
 }
 
-/** `25 Sep`. */
-export function formatDayMonth(iso: string): string {
-  const { month, day } = isoParts(iso)
-  return `${day} ${MONTH_SHORT[month - 1]}`
-}
-
-/** `Thu, 24 Sep 2026`, or "Today, 25 Sep" / "Yesterday, 24 Sep" relative to India time. */
-export function friendlyDate(iso: string, today: string): string {
-  if (iso === today) return `Today, ${formatDayMonth(iso)}`
-  if (iso === addDays(today, -1)) return `Yesterday, ${formatDayMonth(iso)}`
-  const { year } = isoParts(iso)
-  return `${weekday(iso)}, ${formatDayMonth(iso)} ${year}`
-}
-
 /** `Thu 24/09` for dense table cells. */
 export function shortWeekday(iso: string): string {
   return weekday(iso)

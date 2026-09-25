@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Bill } from '@/lib/models'
 import { FakeRepository } from '../support/fakeRepository'
-import { buttonByText, byTestId, mountApp, settle } from '../support/mountApp'
+import { buttonByText, byTestId, confirmButton, mountApp, settle } from '../support/mountApp'
 
 async function click(el: Element | null | undefined) {
   if (!el) throw new Error('nothing to click')
@@ -173,15 +173,21 @@ describe('Bills', () => {
     })
   })
 
-  it('the bell toggles the reminder; undo moves the paid month back after confirming', async () => {
+  it('the bell toggles the reminder; "Mark unpaid" moves the paid month back after confirming', async () => {
     const repo = new FakeRepository()
     repo.bills = [bill()]
     await mountApp({ path: '/bills', repo })
     await click(byTestId('reminder-bill-1'))
     expect(repo.reminderToggles).toEqual([{ id: 'bill-1', enabled: false }])
+    expect(byTestId('unpay-bill-1')?.textContent?.trim()).toBe('Mark unpaid')
     await click(byTestId('unpay-bill-1'))
-    await click(buttonByText('Mark unpaid'))
+    expect(document.body.textContent).toContain('Mark August 2026 unpaid?')
+    expect(document.activeElement).toBe(confirmButton('reject')) // Cancel, so Enter changes nothing
+    await click(confirmButton('accept'))
     expect(repo.paidThroughSets).toEqual([{ id: 'bill-1', month: { year: 2026, month: 7 } }])
+    // It only marks the month unpaid: nothing is deleted from Transactions.
+    expect(repo.deletes).toHaveLength(0)
+    expect(document.body.textContent).toContain('Marked August 2026 unpaid for BESCOM')
   })
 
   it('offline: nothing is sent', async () => {

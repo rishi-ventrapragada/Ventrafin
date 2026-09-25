@@ -2,9 +2,19 @@
 // the text shown in the editor, and the change to save when it's done.
 // Uses the same vocabularies and rules as new entries (entryRow.ts).
 import { formatDateIndian, parseDateInput } from './dates'
-import { AUTO_CATEGORY, DESCRIPTION_MAX, isAutoCategory, matchAccount, matchCategory, parseMethod, parseTxnType, type EntryContext } from './entryRow'
+import {
+  AUTO_CATEGORY,
+  DESCRIPTION_MAX,
+  archivedAccountNamed,
+  isAutoCategory,
+  matchAccount,
+  matchCategory,
+  parseMethod,
+  parseTxnType,
+  type EntryContext,
+} from './entryRow'
 import { formatAmountInput, parseSignedAmount } from './money'
-import { PAYMENT_METHODS, txnTypeLabel, type Txn, type TxnPatch } from './models'
+import { PAYMENT_METHODS, pickerLabel, txnTypeLabel, type Txn, type TxnPatch } from './models'
 
 export const EDITABLE_FIELDS = ['date', 'description', 'categoryId', 'amountPaise', 'type', 'accountId', 'toAccountId', 'paymentMethod'] as const
 export type EditableField = (typeof EDITABLE_FIELDS)[number]
@@ -13,8 +23,9 @@ export function isEditableField(f: string): f is EditableField {
   return (EDITABLE_FIELDS as readonly string[]).includes(f)
 }
 
-/** The text a cell's editor starts with. */
+/** The text a cell's editor starts with (an archived account or category as `Name (archived)`). */
 export function editorText(t: Txn, field: EditableField, ctx: EntryContext): string {
+  const named = (item: { name: string; archived: boolean } | undefined) => (item ? pickerLabel(item) : '')
   switch (field) {
     case 'date':
       return formatDateIndian(t.date)
@@ -25,14 +36,19 @@ export function editorText(t: Txn, field: EditableField, ctx: EntryContext): str
     case 'type':
       return txnTypeLabel(t.type)
     case 'categoryId':
-      return t.categoryId ? (ctx.categories.find((c) => c.id === t.categoryId)?.name ?? '') : AUTO_CATEGORY
+      return t.categoryId ? named(ctx.categories.find((c) => c.id === t.categoryId)) : AUTO_CATEGORY
     case 'accountId':
-      return ctx.accounts.find((a) => a.id === t.accountId)?.name ?? ''
+      return named(ctx.accounts.find((a) => a.id === t.accountId))
     case 'toAccountId':
-      return t.toAccountId ? (ctx.accounts.find((a) => a.id === t.toAccountId)?.name ?? '') : ''
+      return t.toAccountId ? named(ctx.accounts.find((a) => a.id === t.toAccountId)) : ''
     case 'paymentMethod':
       return t.paymentMethod ? PAYMENT_METHODS.find((m) => m.value === t.paymentMethod)!.label : ''
   }
+}
+
+function noAccount(value: string, ctx: EntryContext): string {
+  const archived = archivedAccountNamed(value, ctx.accounts)
+  return archived ? `"${archived.name}" is archived. Choose another account` : `No account called "${value}"`
 }
 
 export type CellEditResult =
@@ -80,21 +96,26 @@ export function cellEdit(t: Txn, field: EditableField, text: string, ctx: EntryC
         // Back to automatic: the database categorizes it again.
         return t.categoryId === null ? unchanged : patch({ categoryId: null })
       }
-      const c = matchCategory(value, t.type, ctx.categories)
-      if (!c) return invalid(`No ${t.type} category called "${value}"`)
+      // Archived categories can't be picked, but the row's own one can stay.
+      const c = matchCategory(value, t.type, ctx.categories, t.categoryId)
+      if (!c) {
+        const archived = ctx.categories.find((x) => x.kind === t.type && x.archived && x.name.trim().toLowerCase() === value.toLowerCase())
+        return invalid(archived ? `"${archived.name}" is archived. Choose another category` : `No ${t.type} category called "${value}"`)
+      }
       return c.id === t.categoryId ? unchanged : patch({ categoryId: c.id })
     }
     case 'accountId': {
-      const a = matchAccount(value, ctx.accounts)
-      if (!a) return invalid(value ? `No account called "${value}"` : 'Choose an account')
+      // Archived accounts can't be picked, but the row's own one can stay.
+      const a = matchAccount(value, ctx.accounts, t.accountId)
+      if (!a) return invalid(value ? noAccount(value, ctx) : 'Choose an account')
       if (a.id === t.accountId) return unchanged
       if (t.type === 'transfer' && a.id === t.toAccountId) return invalid('The "From" and "To" accounts must be different')
       return patch({ accountId: a.id })
     }
     case 'toAccountId': {
       if (t.type !== 'transfer') return unchanged
-      const a = matchAccount(value, ctx.accounts)
-      if (!a) return invalid(value ? `No account called "${value}"` : 'Choose the account the money went to')
+      const a = matchAccount(value, ctx.accounts, t.toAccountId)
+      if (!a) return invalid(value ? noAccount(value, ctx) : 'Choose the account the money went to')
       if (a.id === t.toAccountId) return unchanged
       if (a.id === t.accountId) return invalid('The "From" and "To" accounts must be different')
       return patch({ toAccountId: a.id })

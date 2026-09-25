@@ -9,12 +9,12 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import BarChart from '@/components/BarChart.vue'
 import ChangeCell from '@/components/ChangeCell.vue'
+import LoadError from '@/components/LoadError.vue'
 import MonthSwitcher from '@/components/MonthSwitcher.vue'
 import TxnAvatar from '@/components/TxnAvatar.vue'
 import { useApp } from '@/data/appContext'
 import { UNCATEGORIZED_LOOK, readableTextColor } from '@/lib/categoryStyle'
 import { MONTH_SHORT, compareMonths, monthKey, monthLabel, monthOf, monthShortLabel, type YearMonth } from '@/lib/dates'
-import { describeError } from '@/lib/errors'
 import { formatRupeesCompact } from '@/lib/money'
 import type { CategoryKind } from '@/lib/models'
 import { buildCategoryTrend, monthsEnding, savedPercent, totalsFor } from '@/lib/reports'
@@ -123,9 +123,7 @@ const last = computed(() => months.value.length - 1)
       <div class="flex flex-col gap-3">
         <section class="card p-3" data-testid="report-month-summary">
           <h2 class="card-title mb-2">{{ monthLabel(month) }}</h2>
-          <p v-if="totals.error.value && !t" class="text-sm text-expense" role="alert">
-            Couldn't load totals. {{ describeError(totals.error.value) }}
-          </p>
+          <LoadError v-if="totals.error.value && !t" compact :error="totals.error.value" what="Couldn't load totals." @retry="totals.refresh()" />
           <table class="dense-table">
             <thead>
               <tr>
@@ -206,9 +204,13 @@ const last = computed(() => months.value.length - 1)
           <h2 class="card-title">Spending by category</h2>
           <span class="text-sm text-slate-600">{{ monthLabel(month) }} against the month before</span>
         </div>
-        <p v-if="comparison.error.value && !comparison.data.value" class="text-sm text-expense" role="alert">
-          Couldn't load the categories. {{ describeError(comparison.error.value) }}
-        </p>
+        <LoadError
+          v-if="comparison.error.value && !comparison.data.value"
+          compact
+          :error="comparison.error.value"
+          what="Couldn't load the categories."
+          @retry="comparison.refresh()"
+        />
         <p v-else-if="!comparison.data.value" class="muted py-6">Loading…</p>
         <p v-else-if="expense.rows.length === 0" class="py-4 text-slate-600">Nothing spent in {{ monthLabel(month) }}.</p>
         <table v-else class="dense-table">
@@ -289,9 +291,13 @@ const last = computed(() => months.value.length - 1)
             <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded-sm" :style="{ background: EXPENSE_COLOR }" />Spent</span>
           </span>
         </div>
-        <p v-if="monthly.error.value && !monthly.data.value" class="text-sm text-expense" role="alert">
-          Couldn't load the months. {{ describeError(monthly.error.value) }}
-        </p>
+        <LoadError
+          v-if="monthly.error.value && !monthly.data.value"
+          compact
+          :error="monthly.error.value"
+          what="Couldn't load the months."
+          @retry="monthly.refresh()"
+        />
         <template v-else-if="monthly.data.value">
           <BarChart
             :labels="labels"
@@ -340,9 +346,13 @@ const last = computed(() => months.value.length - 1)
           <h2 class="card-title">Spending by category, month by month</h2>
           <span class="text-sm text-slate-600">Top 5 in the chart, every category in the table</span>
         </div>
-        <p v-if="monthlyCategories.error.value && !monthlyCategories.data.value" class="text-sm text-expense" role="alert">
-          Couldn't load the categories. {{ describeError(monthlyCategories.error.value) }}
-        </p>
+        <LoadError
+          v-if="monthlyCategories.error.value && !monthlyCategories.data.value"
+          compact
+          :error="monthlyCategories.error.value"
+          what="Couldn't load the categories."
+          @retry="monthlyCategories.refresh()"
+        />
         <p v-else-if="!monthlyCategories.data.value" class="muted py-6">Loading…</p>
         <p v-else-if="trend.rows.length === 0" class="py-4 text-slate-600">No spending in these months.</p>
         <template v-else>

@@ -110,6 +110,12 @@
   .dense-table tr:hover td {
     background: color-mix(in srgb, var(--vf-primary-soft) 55%, white);
   }
+  /* Text boxes in forms and dialogs: a clear 2px ring in the theme's
+     primary colour when focused, not just a border that changes colour. */
+  .focus-ring:focus {
+    outline: 2px solid var(--vf-primary);
+    outline-offset: 1px;
+  }
   kbd {
     font-family: inherit;
     font-size: 0.8em;

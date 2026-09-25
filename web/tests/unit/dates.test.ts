@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   addDays,
   formatDateIndian,
-  friendlyDate,
   indiaToday,
   monthKey,
   monthLabel,
@@ -103,12 +102,6 @@ describe('parseDateInput: Indian day/month/year', () => {
 describe('formatting', () => {
   it('dd/mm/yyyy', () => {
     expect(formatDateIndian('2026-09-05')).toBe('05/09/2026')
-  })
-
-  it('friendly dates relative to India time', () => {
-    expect(friendlyDate('2026-09-25', TODAY)).toBe('Today, 25 Sep')
-    expect(friendlyDate('2026-09-24', TODAY)).toBe('Yesterday, 24 Sep')
-    expect(friendlyDate('2026-09-20', TODAY)).toBe('Sun, 20 Sep 2026')
   })
 
   it('addDays across month ends', () => {

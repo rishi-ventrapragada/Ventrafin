@@ -6,23 +6,25 @@
 // date, amount, type, account and description) are skipped unless asked.
 // Nothing is saved until the user confirms; rows that can't be saved go to
 // the Add grid to be fixed. Categories are left to the database's
-// auto-categorization, like every other entry.
+// auto-categorization, like every other entry. Opens on "Choose a CSV
+// file"; Enter saves.
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, reactive, ref, shallowRef, useId, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import { newRowKey } from '@/components/add/gridRow'
 import { useApp } from '@/data/appContext'
 import { handOffToGrid } from '@/data/gridHandoff'
+import { submitOnEnter } from '@/directives'
 import { MAX_IMPORT_ROWS, decodeCsvBytes, fileProblem, readCsv } from '@/lib/csvImport'
 import { dateSpan, findAlreadySaved } from '@/lib/duplicates'
 import type { EntryContext } from '@/lib/entryRow'
 import { describeError } from '@/lib/errors'
 import { formatRupees } from '@/lib/money'
-import { PAYMENT_METHODS, methodLabel, type PaymentMethod, type Txn } from '@/lib/models'
+import { PAYMENT_METHODS, activeOnly, methodLabel, type PaymentMethod, type Txn } from '@/lib/models'
 import { readTable } from '@/lib/paste'
 import RowsPreview from './RowsPreview.vue'
 import { spentIn, usePreviewRows } from './previewRows'
@@ -35,6 +37,7 @@ const visible = defineModel<boolean>('visible', { required: true })
 const app = useApp()
 const toast = useToast()
 const router = useRouter()
+const formId = useId()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const fileName = ref('')
@@ -48,11 +51,13 @@ const context = computed<EntryContext>(() => ({
   today: app.today.value,
 }))
 
-// What rows that don't say get (a bank statement has no Account column).
+// What rows that don't say get (a bank statement has no Account column):
+// an active account (the remembered one only while it is still active).
+const activeAccounts = computed(() => activeOnly(accounts.value))
 const defaultAccountId = ref<string | null>(null)
 const defaultMethod = ref<PaymentMethod>(app.prefs.lastMethod ?? 'upi')
 watch(
-  accounts,
+  activeAccounts,
   (list) => {
     if (defaultAccountId.value && list.some((a) => a.id === defaultAccountId.value)) return
     defaultAccountId.value =
@@ -160,7 +165,7 @@ const saving = ref(false)
 const failure = ref<string | null>(null)
 
 async function save() {
-  if (saving.value || toSave.value.length === 0) return
+  if (saving.value || tooMany.value || checking.value || toSave.value.length === 0) return
   failure.value = null
   saving.value = true
   const rows = toSave.value
@@ -217,10 +222,17 @@ function allToGrid() {
     :close-on-escape="!saving"
     :closable="!saving"
   >
-    <div class="flex flex-col gap-3">
+    <form :id="formId" class="flex flex-col gap-3" @submit.prevent="save" @keydown="submitOnEnter">
       <div class="flex flex-wrap items-center gap-3">
         <input ref="fileInput" type="file" accept=".csv,.txt,.tsv,text/csv" class="hidden" data-testid="import-file" @change="onFile" />
-        <Button :label="fileName ? 'Choose another file' : 'Choose a CSV file…'" :outlined="Boolean(fileName)" :disabled="saving" @click="chooseFile">
+        <Button
+          :label="fileName ? 'Choose another file' : 'Choose a CSV file…'"
+          :outlined="Boolean(fileName)"
+          :disabled="saving"
+          autofocus
+          data-testid="import-choose"
+          @click="chooseFile"
+        >
           <template #icon><AppIcon name="upload_file" :size="20" /></template>
         </Button>
         <span v-if="fileName" class="font-medium" data-testid="import-file-name">{{ fileName }}</span>
@@ -250,7 +262,7 @@ function allToGrid() {
             Rows without an account:
             <Select
               v-model="defaultAccountId"
-              :options="accounts"
+              :options="activeAccounts"
               option-label="name"
               option-value="id"
               size="small"
@@ -300,7 +312,7 @@ function allToGrid() {
       <p v-if="failure" class="text-sm text-expense" role="alert" data-testid="import-failure">
         <AppIcon name="error" filled :size="18" class="align-[-4px]" /> {{ failure }}
       </p>
-    </div>
+    </form>
 
     <template #footer>
       <div class="flex w-full flex-wrap items-center gap-2">
@@ -324,11 +336,12 @@ function allToGrid() {
           @click="allToGrid"
         />
         <Button
+          type="submit"
+          :form="formId"
           :label="`Save ${toSave.length} row${toSave.length === 1 ? '' : 's'}`"
           :loading="saving"
           :disabled="tooMany || checking || toSave.length === 0"
           data-testid="import-save"
-          @click="save"
         />
       </div>
     </template>

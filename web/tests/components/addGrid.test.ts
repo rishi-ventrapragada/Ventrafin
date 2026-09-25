@@ -2,7 +2,7 @@
 // dialogs) on the in-memory repository with a fixed clock: 00:30 IST on
 // 25 Sep 2026, when UTC is still the 24th.
 import { describe, expect, it } from 'vitest'
-import { createMemoryEntryPrefs } from '@/data/entryPrefs'
+import { createMemoryEntryPrefs } from '../support/memoryEntryPrefs'
 import { AppError } from '@/lib/errors'
 import { FakeRepository } from '../support/fakeRepository'
 import { buttonByText, byTestId, cell, mountApp, settle } from '../support/mountApp'

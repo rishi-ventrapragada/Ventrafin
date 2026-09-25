@@ -28,6 +28,7 @@ import {
   activeTheme,
   applyTheme,
   cssVarsFor,
+  presetFor,
   themeById,
   themeSurfaces,
 } from '@/lib/theme'
@@ -115,5 +116,23 @@ describe('category glyphs (the same on both apps)', () => {
     expect(circleEdgeFor('#FDD835', ocean)).not.toBeNull()
     expect(circleEdgeFor('#1565C0', ocean)).toBeNull()
     expect(CARD_COLOR).toBe('#FFFFFF')
+  })
+})
+
+describe('toasts (save confirmations and errors)', () => {
+  it('every severity reads at 4.5:1 or better on its own background, in all six themes', () => {
+    const severities = ['info', 'success', 'warn', 'error', 'secondary', 'contrast']
+    for (const theme of THEMES) {
+      // The values PrimeVue actually uses: the toast tokens of the theme's preset.
+      const preset = presetFor(theme) as { components: { toast: { colorScheme: { light: Record<string, Record<string, string>> } } } }
+      const toast = preset.components.toast.colorScheme.light
+      for (const sev of severities) {
+        const t = toast[sev]!
+        // Solid backgrounds, so the ratio is what is on screen (Aura's are see-through).
+        expect(t.background, `${theme.id} ${sev}`).toMatch(/^#[0-9a-f]{6}$/i)
+        expect(contrastRatio(t.color!, t.background!), `${theme.id} ${sev} title and icon`).toBeGreaterThanOrEqual(4.5)
+        expect(contrastRatio(t.detailColor!, t.background!), `${theme.id} ${sev} detail`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
   })
 })

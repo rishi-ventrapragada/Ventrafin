@@ -114,6 +114,9 @@ const outlined = [
   'passkey',
   'fingerprint',
   'database',
+  // Archiving accounts and categories (audit round 1)
+  'archive',
+  'unarchive',
 ]
 
 // Keys are Material Icons names (what the database stores and Flutter draws).

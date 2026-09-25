@@ -39,7 +39,6 @@ export const DEFAULT_THEME_ID = tokens.defaultTheme as ThemeId
 export const EXPENSE_COLOR = tokens.semantic.expense
 export const INCOME_COLOR = tokens.semantic.income
 export const TRANSFER_COLOR = tokens.semantic.transfer
-export const UNCATEGORIZED_COLOR = tokens.semantic.uncategorized
 export const UNCATEGORIZED_INK = tokens.semantic.uncategorizedInk
 export const CARD_COLOR = tokens.semantic.card
 
@@ -53,7 +52,40 @@ export function themeSurfaces(theme: ThemeTokens): string[] {
   return [CARD_COLOR, theme.page, theme.primarySoft]
 }
 
-/** Aura with the theme's primary as PrimeVue's primary colour. */
+export type ToastSeverity = 'info' | 'success' | 'warn' | 'error' | 'secondary' | 'contrast'
+
+/**
+ * Toast colours. Aura's own put green-600 on green-50 (3.1:1) and
+ * yellow-600 on yellow-50 (2.8:1), over a see-through background; these
+ * are solid, and the title, icon and detail all read at 4.5:1 or better
+ * (tests/unit/themes.test.ts). The same in every theme: a toast floats over
+ * whatever is on the page.
+ */
+export const TOAST_COLORS: Readonly<Record<ToastSeverity, { background: string; border: string; color: string; detail: string; hover: string }>> = {
+  info: { background: '#eff6ff', border: '#bfdbfe', color: '#1e40af', detail: '#334155', hover: '#dbeafe' },
+  success: { background: '#f0fdf4', border: '#bbf7d0', color: '#166534', detail: '#334155', hover: '#dcfce7' },
+  warn: { background: '#fefce8', border: '#fde68a', color: '#854d0e', detail: '#334155', hover: '#fef9c3' },
+  error: { background: '#fef2f2', border: '#fecaca', color: '#991b1b', detail: '#334155', hover: '#fee2e2' },
+  secondary: { background: '#f1f5f9', border: '#e2e8f0', color: '#334155', detail: '#334155', hover: '#e2e8f0' },
+  contrast: { background: '#0f172a', border: '#020617', color: '#f8fafc', detail: '#f8fafc', hover: '#1e293b' },
+}
+
+function toastTokens() {
+  return Object.fromEntries(
+    Object.entries(TOAST_COLORS).map(([severity, c]) => [
+      severity,
+      {
+        background: c.background,
+        borderColor: c.border,
+        color: c.color,
+        detailColor: c.detail,
+        closeButton: { hoverBackground: c.hover, focusRing: { color: c.color, shadow: 'none' } },
+      },
+    ]),
+  )
+}
+
+/** Aura with the theme's primary as PrimeVue's primary colour, and readable toasts. */
 export function presetFor(theme: ThemeTokens) {
   return definePreset(Aura, {
     semantic: {
@@ -74,6 +106,9 @@ export function presetFor(theme: ThemeTokens) {
           },
         },
       },
+    },
+    components: {
+      toast: { colorScheme: { light: toastTokens() } },
     },
   })
 }

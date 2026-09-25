@@ -12,6 +12,11 @@ async function click(el: Element | null | undefined) {
   await settle()
 }
 
+async function press(el: Element, key: string) {
+  el.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true }))
+  await settle()
+}
+
 async function type(el: HTMLInputElement | null, text: string) {
   if (!el) throw new Error('no input')
   el.value = text
@@ -99,6 +104,28 @@ describe('Export (Transactions page)', () => {
     await click(byTestId('export-download'))
     expect(byTestId('export-failure')!.textContent).toContain('no transactions in that range')
     expect(await downloaded()).toEqual([])
+  })
+
+  it('opens on the chosen range, and Enter downloads', async () => {
+    const repo = repoWithSeptember()
+    await mountApp({ repo, path: '/transactions?month=2026-09' })
+    await click(byTestId('open-export'))
+    const first = document.querySelector<HTMLInputElement>('[data-range="shown"] input')!
+    expect(document.activeElement).toBe(first)
+    expect(byTestId<HTMLButtonElement>('export-download')!.type).toBe('submit')
+    await press(first, 'Enter')
+    expect(repo.exportCalls).toEqual([{ from: '2026-09-01', to: '2026-09-30' }])
+  })
+
+  it('searching all months: exports the matches from every month', async () => {
+    const repo = repoWithSeptember()
+    await mountApp({ repo, path: '/transactions?month=2026-09' })
+    await type(byTestId<HTMLInputElement>('search'), 'tea')
+    await click(byTestId('all-months'))
+    await click(byTestId('open-export'))
+    expect(byTestId('export-ranges')!.textContent).toContain('All months, filtered as on screen · 1 transaction')
+    await click(byTestId('export-download'))
+    expect(repo.exportCalls).toEqual([{ from: null, to: null, ids: ['t3'] }])
   })
 
   it('a failed export explains why and keeps the dialog open', async () => {
@@ -190,6 +217,20 @@ describe('Import (Settings)', () => {
     await settle()
     expect(cell(0, 1).value).toBe('BROKEN DATE')
     expect(document.body.textContent).toContain('1 imported row to fix')
+  })
+
+  it('opens on "Choose a CSV file"; Enter in the form saves', async () => {
+    const repo = new FakeRepository()
+    repo.txns = [makeTxn('old', { date: '2026-09-03', description: 'DMart', amountPaise: 50000, accountId: 'acc-bank', categoryId: 'cat-groc' })]
+    await mountApp({ repo, path: '/settings' })
+    await click(byTestId('settings-import'))
+    expect(document.activeElement).toBe(byTestId('import-choose'))
+    await chooseFile('statement.csv', STATEMENT)
+    const anyway = byTestId<HTMLInputElement>('import-include-duplicates')!
+    anyway.focus()
+    await press(anyway, 'Enter')
+    expect(repo.insertAttempts).toHaveLength(1)
+    expect(document.body.textContent).toContain('Imported 2 transactions')
   })
 
   it('"Save them anyway" includes rows already saved', async () => {

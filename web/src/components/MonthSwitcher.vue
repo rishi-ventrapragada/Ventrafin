@@ -1,14 +1,17 @@
 <script setup lang="ts">
-// ‹ September 2026 ›, with a month picker on the label.
+// ‹ September 2026 ›, with a month picker on the label. With `allLabel`
+// ("All months") it shows that instead, greyed out, while a page is looking
+// past the month; the month itself is kept for when it goes back.
 import Popover from 'primevue/popover'
 import { computed, ref } from 'vue'
 import { MONTH_SHORT, compareMonths, monthLabel, nextMonth, previousMonth, type YearMonth } from '@/lib/dates'
 import AppIcon from './AppIcon.vue'
 
-const props = defineProps<{ max?: YearMonth }>()
+const props = defineProps<{ max?: YearMonth; allLabel?: string | null }>()
 const month = defineModel<YearMonth>({ required: true })
 
-const canGoForward = computed(() => !props.max || compareMonths(month.value, props.max) < 0)
+const off = computed(() => !!props.allLabel)
+const canGoForward = computed(() => !off.value && (!props.max || compareMonths(month.value, props.max) < 0))
 const pickerYear = ref(month.value.year)
 const popover = ref<InstanceType<typeof Popover> | null>(null)
 
@@ -29,18 +32,25 @@ function isFuture(m: number) {
 
 <template>
   <div class="inline-flex items-center rounded-md border border-slate-300 bg-white" data-testid="month-switcher">
-    <button type="button" class="px-1.5 py-1 text-slate-600 hover:bg-slate-100" aria-label="Previous month" @click="month = previousMonth(month)">
+    <button
+      type="button"
+      class="px-1.5 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+      aria-label="Previous month"
+      :disabled="off"
+      @click="month = previousMonth(month)"
+    >
       <AppIcon name="chevron_left" :size="23" />
     </button>
     <button
       type="button"
-      class="inline-flex min-w-[10.5rem] items-center justify-center gap-1.5 border-x border-slate-200 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
+      class="inline-flex min-w-[10.5rem] items-center justify-center gap-1.5 border-x border-slate-200 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-50"
       aria-haspopup="dialog"
+      :disabled="off"
       data-testid="month-label"
       @click="toggle"
     >
-      <AppIcon name="calendar_month" :size="20" class="text-slate-600" />
-      {{ monthLabel(month) }}
+      <AppIcon :name="off ? 'search' : 'calendar_month'" :size="20" class="text-slate-600" />
+      {{ allLabel || monthLabel(month) }}
     </button>
     <button
       type="button"

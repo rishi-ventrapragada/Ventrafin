@@ -46,21 +46,3 @@ export function createLocalEntryPrefs(): EntryPrefs {
     },
   }
 }
-
-/** In-memory prefs for tests. */
-export function createMemoryEntryPrefs(initial: { accountId?: string; method?: PaymentMethod } = {}): EntryPrefs {
-  let accountId = initial.accountId ?? null
-  let method = initial.method ?? null
-  return {
-    get lastAccountId() {
-      return accountId
-    },
-    get lastMethod() {
-      return method
-    },
-    remember(a, m) {
-      accountId = a
-      if (m) method = m
-    },
-  }
-}

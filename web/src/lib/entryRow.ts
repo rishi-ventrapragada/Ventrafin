@@ -4,6 +4,7 @@
 import { formatDateIndian, parseDateInput } from './dates'
 import { formatAmountInput, parseSignedAmount } from './money'
 import {
+  ARCHIVED_SUFFIX,
   PAYMENT_METHODS,
   TXN_TYPES,
   type Account,
@@ -113,22 +114,40 @@ const ACCOUNT_TYPE_WORDS: Readonly<Record<string, AccountType>> = {
   'credit card': 'credit', cc: 'credit', credit: 'credit', card: 'credit',
 }
 
-/** The account a cell names: its exact name, or a type word when only one account has that type. */
-export function matchAccount(text: string, accounts: readonly Account[]): Account | null {
+/** The name in a cell, without the ` (archived)` a picker adds to an archived current value. */
+function cellName(text: string): string {
   const s = norm(text)
+  const suffix = norm(ARCHIVED_SUFFIX)
+  return s.endsWith(suffix) ? s.slice(0, -suffix.length).trim() : s
+}
+
+/**
+ * The active account a cell names: its exact name, or a type word when only
+ * one active account has that type. Archived accounts are left out (they are
+ * for old entries only), except `keep`: the value an existing row already has.
+ */
+export function matchAccount(text: string, accounts: readonly Account[], keep?: string | null): Account | null {
+  const s = cellName(text)
   if (!s) return null
-  const byName = accounts.find((a) => norm(a.name) === s)
+  const usable = accounts.filter((a) => !a.archived || a.id === keep)
+  const byName = usable.find((a) => norm(a.name) === s)
   if (byName) return byName
   const type = ACCOUNT_TYPE_WORDS[s]
   if (!type) return null
-  const ofType = accounts.filter((a) => a.type === type)
+  const ofType = usable.filter((a) => a.type === type && !a.archived)
   return ofType.length === 1 ? ofType[0]! : null
 }
 
-/** An active category of `kind` with this name (any case). */
-export function matchCategory(text: string, kind: CategoryKind, categories: readonly Category[]): Category | null {
-  const s = norm(text)
-  return categories.find((c) => c.kind === kind && !c.archived && norm(c.name) === s) ?? null
+/** An archived account with this name, to say why it can't be picked. */
+export function archivedAccountNamed(text: string, accounts: readonly Account[]): Account | null {
+  const s = cellName(text)
+  return (s && accounts.find((a) => a.archived && norm(a.name) === s)) || null
+}
+
+/** An active category of `kind` with this name (any case), or `keep` (an existing row's value) even if archived. */
+export function matchCategory(text: string, kind: CategoryKind, categories: readonly Category[], keep?: string | null): Category | null {
+  const s = cellName(text)
+  return categories.find((c) => c.kind === kind && (!c.archived || c.id === keep) && norm(c.name) === s) ?? null
 }
 
 export function isAutoCategory(text: string): boolean {
@@ -220,18 +239,23 @@ export function parseEntryRow(raw: RawRow, ctx: EntryContext): ParsedRow {
   }
 
   // Accounts
+  // New entries go to active accounts only.
+  const noAccount = (text: string) => {
+    const archived = archivedAccountNamed(text, ctx.accounts)
+    return archived ? `"${archived.name}" is archived. Choose another account` : `No account called "${text.trim()}"`
+  }
   let account: Account | null = null
   if (!raw.account.trim()) error('account', 'Choose an account')
   else {
     account = matchAccount(raw.account, ctx.accounts)
-    if (!account) error('account', `No account called "${raw.account.trim()}"`)
+    if (!account) error('account', noAccount(raw.account))
   }
   let toAccount: Account | null = null
   if (type === 'transfer') {
     if (!raw.toAccount.trim()) error('toAccount', 'Choose the account the money went to')
     else {
       toAccount = matchAccount(raw.toAccount, ctx.accounts)
-      if (!toAccount) error('toAccount', `No account called "${raw.toAccount.trim()}"`)
+      if (!toAccount) error('toAccount', noAccount(raw.toAccount))
       else if (account && toAccount.id === account.id) error('toAccount', 'Must be different from the "From" account')
     }
   } else if (raw.toAccount.trim()) {

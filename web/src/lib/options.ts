@@ -6,6 +6,8 @@ import {
   ACCOUNT_TYPES,
   PAYMENT_METHODS,
   TXN_TYPES,
+  activeOnly,
+  pickerLabel,
   sortByName,
   type Account,
   type Category,
@@ -56,8 +58,12 @@ export interface AccountOption extends ComboOption {
   account: Account
 }
 
-export function accountOptions(accounts: readonly Account[]): AccountOption[] {
-  return accounts.map((a) => ({ label: a.name, account: a, hint: ACCOUNT_TYPES[a.type].label }))
+/**
+ * The active accounts. `keep` is an existing row's account: it stays
+ * selectable even if archived, labelled `Old bank (archived)`.
+ */
+export function accountOptions(accounts: readonly Account[], keep?: string | null): AccountOption[] {
+  return activeOnly(accounts, keep).map((a) => ({ label: pickerLabel(a), account: a, hint: ACCOUNT_TYPES[a.type].label }))
 }
 
 export interface CategoryOption extends ComboOption {
@@ -65,11 +71,11 @@ export interface CategoryOption extends ComboOption {
   category: Category | null
 }
 
-/** "Auto" first, then the active categories of `kind` (plus `keep`, if archived but in use). */
+/** "Auto" first, then the active categories of `kind` (plus `keep`, if archived but in use, as `Old stuff (archived)`). */
 export function categoryOptions(categories: readonly Category[], kind: CategoryKind, keep?: string | null): CategoryOption[] {
-  const active = sortByName(categories.filter((c) => c.kind === kind && (!c.archived || c.id === keep)))
+  const active = sortByName(activeOnly(categories, keep).filter((c) => c.kind === kind))
   return [
     { label: AUTO_CATEGORY, category: null, hint: 'Ventrafin picks', keywords: ['uncategorized'] },
-    ...active.map((c) => ({ label: c.name, category: c, hint: c.archived ? 'archived' : undefined })),
+    ...active.map((c) => ({ label: pickerLabel(c), category: c })),
   ]
 }

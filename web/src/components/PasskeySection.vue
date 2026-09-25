@@ -74,7 +74,8 @@ function remove(p: PasskeyInfo) {
     header: 'Remove this passkey?',
     message: `"${p.name}" will no longer sign you in. Google sign-in is not affected. You can set it up again at any time.`,
     acceptLabel: 'Remove',
-    rejectLabel: 'Keep',
+    rejectLabel: 'Cancel',
+    defaultFocus: 'reject',
     acceptProps: { severity: 'danger' },
     rejectProps: { severity: 'secondary', outlined: true },
     accept: async () => {

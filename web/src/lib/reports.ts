@@ -112,11 +112,6 @@ export function buildCategoryTrend(
   }
 }
 
-/** Whole-percent change from `before` to `now`; null when `before` is 0. */
-export function percentChange(now: number, before: number): number | null {
-  return before === 0 ? null : Math.round(((now - before) * 100) / before)
-}
-
 /** Short axis labels: `₹950`, `₹9.5k`, `₹12k`, `₹1.2L`, `₹3.4Cr` (same as the phone). */
 export function formatRupeesAxis(paise: number): string {
   const rupees = Math.trunc(paise / 100)

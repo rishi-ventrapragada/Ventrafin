@@ -78,11 +78,17 @@ export interface Account {
   id: string
   name: string
   type: AccountType
+  /** Hidden from the pickers for new entries; old transactions and bills keep it. */
+  archived: boolean
 }
 
-export function accountFromRow(r: Pick<AccountRow, 'id' | 'name' | 'type'>): Account {
-  return { id: r.id, name: r.name, type: asAccountType(r.type) }
+/** `archived` may be missing (a server without the column yet): not archived. */
+export function accountFromRow(r: Pick<AccountRow, 'id' | 'name' | 'type'> & { archived?: boolean | null }): Account {
+  return { id: r.id, name: r.name, type: asAccountType(r.type), archived: r.archived ?? false }
 }
+
+/** The account types in the order the forms offer them. */
+export const ACCOUNT_TYPE_ORDER: readonly AccountType[] = ['cash', 'bank', 'credit']
 
 export interface Category {
   id: string
@@ -263,6 +269,48 @@ export function categoryNameError(
     return `You already have ${article} category called "${clash.name}"${clash.archived ? ' (archived)' : ''}`
   }
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Account names
+// ---------------------------------------------------------------------------
+
+/** Longest account name the database accepts (`accounts_name_check`). */
+export const ACCOUNT_NAME_MAX = 60
+
+/**
+ * Why `name` can't be used for an account, or null if it can. Mirrors the
+ * database: 1–60 characters, unique ignoring case and outer spaces (archived
+ * accounts count too). Same shape as categoryNameError, and the same
+ * wording as the phone.
+ */
+export function accountNameError(
+  name: string,
+  { existing, exceptId }: { existing: readonly Account[]; exceptId?: string },
+): string | null {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Enter a name'
+  if ([...trimmed].length > ACCOUNT_NAME_MAX) return `Keep it to ${ACCOUNT_NAME_MAX} characters or fewer`
+  const lower = trimmed.toLowerCase()
+  const clash = existing.find((a) => a.id !== exceptId && a.name.trim().toLowerCase() === lower)
+  if (clash) return `You already have an account called "${clash.name}"${clash.archived ? ' (archived)' : ''}`
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Archived accounts and categories
+// ---------------------------------------------------------------------------
+
+export const ARCHIVED_SUFFIX = ' (archived)'
+
+/** How a picker shows a current value that is archived: `Old stuff (archived)`. */
+export function pickerLabel(item: { name: string; archived: boolean }): string {
+  return item.archived ? `${item.name}${ARCHIVED_SUFFIX}` : item.name
+}
+
+/** Accounts or categories to offer for new data (archived ones hidden), keeping `keep` if it is in use. */
+export function activeOnly<T extends { id: string; archived: boolean }>(items: readonly T[], keep?: string | null): T[] {
+  return items.filter((x) => !x.archived || x.id === keep)
 }
 
 /** Categories sorted by name, case-insensitively. */

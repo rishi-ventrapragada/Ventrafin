@@ -15,7 +15,9 @@ import {
   patchToRow,
   profileFromRow,
   txnFromRow,
+  type AccountType,
   type BillDraft,
+  type CategoryKind,
   type PaymentMethod,
   type Txn,
   type TxnPatch,
@@ -49,6 +51,9 @@ async function run<T>(request: PromiseLike<Result<T>>): Promise<T> {
 const TXN_COLUMNS =
   'id, date, amount_paise, description, type, account_id, to_account_id, category_id, payment_method, auto_categorized, owner_id, created_at, updated_at'
 
+const ACCOUNT_COLUMNS = 'id, name, type, archived'
+const CATEGORY_COLUMNS = 'id, name, kind, color, archived, icon'
+
 /** Supabase's default "max rows" per API response. */
 const TXN_PAGE = 1000
 
@@ -56,12 +61,46 @@ export class SupabaseFinanceRepository implements FinanceRepository {
   constructor(private readonly client: AppSupabaseClient) {}
 
   async fetchAccounts() {
-    const rows = await run(this.client.from('accounts').select('id, name, type').order('name'))
-    return rows.map(accountFromRow)
+    try {
+      const rows = await run(this.client.from('accounts').select(ACCOUNT_COLUMNS).order('name'))
+      return rows.map(accountFromRow)
+    } catch (e) {
+      // 42703 (no such column): the database doesn't have accounts.archived
+      // yet (migration 20260925180000 not applied). Carry on without it:
+      // every account counts as active.
+      if (!(e instanceof AppError && e.code === '42703')) throw e
+      const rows = await run(this.client.from('accounts').select('id, name, type').order('name'))
+      return rows.map(accountFromRow)
+    }
+  }
+
+  async insertAccount(id: string, name: string, type: AccountType) {
+    let row
+    try {
+      row = await run(this.client.from('accounts').insert({ id, name: name.trim(), type }).select(ACCOUNT_COLUMNS).maybeSingle())
+    } catch (e) {
+      // An earlier attempt with this id already went through (its response was lost).
+      if (!(e instanceof AppError && e.code === '23505' && /pkey/.test(e.message))) throw e
+      row = await run(this.client.from('accounts').select(ACCOUNT_COLUMNS).eq('id', id).maybeSingle())
+    }
+    if (!row) throw new AppError('insertAccount returned no row')
+    return accountFromRow(row)
+  }
+
+  async updateAccount(id: string, name: string, type: AccountType) {
+    const row = await run(
+      this.client.from('accounts').update({ name: name.trim(), type }).eq('id', id).select(ACCOUNT_COLUMNS).maybeSingle(),
+    )
+    if (!row) throw new AppError('Account not found', 'PGRST116')
+    return accountFromRow(row)
+  }
+
+  async setAccountArchived(id: string, archived: boolean) {
+    await run(this.client.from('accounts').update({ archived }).eq('id', id).select('id').single())
   }
 
   async fetchCategories() {
-    const rows = await run(this.client.from('categories').select('id, name, kind, color, archived, icon').order('name'))
+    const rows = await run(this.client.from('categories').select(CATEGORY_COLUMNS).order('name'))
     return rows.map(categoryFromRow)
   }
 
@@ -169,11 +208,24 @@ export class SupabaseFinanceRepository implements FinanceRepository {
         .from('categories')
         .update({ name: edit.name.trim(), icon: edit.icon, color: edit.color })
         .eq('id', id)
-        .select('id, name, kind, color, archived, icon')
+        .select(CATEGORY_COLUMNS)
         .maybeSingle(),
     )
     if (!row) throw new AppError('Category not found', 'PGRST116')
     return categoryFromRow(row)
+  }
+
+  async insertCategory(name: string, kind: CategoryKind) {
+    // Only name and kind: the categories_default_style trigger fills in the
+    // icon and colour (the generated Insert type doesn't know about it).
+    const insert = { name: name.trim(), kind } as Database['public']['Tables']['categories']['Insert']
+    const row = await run(this.client.from('categories').insert(insert).select(CATEGORY_COLUMNS).maybeSingle())
+    if (!row) throw new AppError('insertCategory returned no row')
+    return categoryFromRow(row)
+  }
+
+  async setCategoryArchived(id: string, archived: boolean) {
+    await run(this.client.from('categories').update({ archived }).eq('id', id).select('id').single())
   }
 
   async fetchMonthlyTotals(from: YearMonth, to: YearMonth) {

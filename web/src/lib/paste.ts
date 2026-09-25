@@ -6,6 +6,7 @@ import { formatDateIndian, parseDateInput } from './dates'
 import {
   AUTO_CATEGORY,
   emptyRow,
+  archivedAccountNamed,
   matchAccount,
   parseMethod,
   parseTxnType,
@@ -283,7 +284,7 @@ export function guessRoles(table: PasteTable, ctx: EntryContext): ColumnRole[] {
     const m = parseMethod(v)
     return m !== null && m !== 'invalid'
   }))
-  pick('account', (c) => share(column(c), (v) => matchAccount(v, ctx.accounts) !== null))
+  pick('account', (c) => share(column(c), (v) => matchAccount(v, ctx.accounts) !== null || archivedAccountNamed(v, ctx.accounts) !== null))
   const categoryNames = new Set(ctx.categories.map((cat) => cat.name.trim().toLowerCase()))
   pick('category', (c) => share(column(c), (v) => v.toLowerCase() === 'auto' || categoryNames.has(v.toLowerCase())))
 

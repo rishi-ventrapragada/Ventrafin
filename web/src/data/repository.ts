@@ -4,10 +4,12 @@
 import type { YearMonth } from '@/lib/dates'
 import type {
   Account,
+  AccountType,
   Bill,
   BillDraft,
   Category,
   CategoryComparison,
+  CategoryKind,
   MarkPaidResult,
   MonthlyCategoryTotal,
   MonthlyTotal,
@@ -40,7 +42,23 @@ export interface CategoryEdit {
 }
 
 export interface FinanceRepository {
+  /** All accounts, archived included (old transactions and bills may still use them). */
   fetchAccounts(): Promise<Account[]>
+
+  /**
+   * Adds an account with a client-generated `id`, so retrying after an
+   * unclear failure can't add it twice. Names are unique ignoring case (23505).
+   */
+  insertAccount(id: string, name: string, type: AccountType): Promise<Account>
+
+  /** Renames an account or changes its type. */
+  updateAccount(id: string, name: string, type: AccountType): Promise<Account>
+
+  /**
+   * Archives (hides from the pickers) or restores an account. Archiving the
+   * last active one is refused by the database: "Keep at least one active account."
+   */
+  setAccountArchived(id: string, archived: boolean): Promise<void>
 
   /** All categories, archived included (old transactions may still use them). */
   fetchCategories(): Promise<Category[]>
@@ -83,6 +101,16 @@ export interface FinanceRepository {
 
   /** Rename / restyle a category. The database keeps a renamed built-in category's keywords. */
   updateCategory(id: string, edit: CategoryEdit): Promise<Category>
+
+  /**
+   * Adds a category by name and kind only: the database picks its icon (from
+   * keywords in the name, else a tag) and colour (the first palette colour
+   * not in use), exactly as for the phone.
+   */
+  insertCategory(name: string, kind: CategoryKind): Promise<Category>
+
+  /** Archives (hides from pickers and auto-categorization) or restores a category. */
+  setCategoryArchived(id: string, archived: boolean): Promise<void>
 
   /** `get_monthly_totals(from, to)`: one row per month, oldest first, empty months as zeros. */
   fetchMonthlyTotals(from: YearMonth, to: YearMonth): Promise<MonthlyTotal[]>

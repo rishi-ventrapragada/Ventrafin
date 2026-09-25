@@ -8,12 +8,12 @@ import { createApp } from 'vue'
 import { createWebHashHistory } from 'vue-router'
 import App from '../src/App.vue'
 import { APP_CONTEXT, createAppContext } from '../src/data/appContext'
-import { createMemoryEntryPrefs } from '../src/data/entryPrefs'
 import { addDays, indiaToday } from '../src/lib/dates'
 import type { Txn } from '../src/lib/models'
 import { createAppRouter } from '../src/router'
 import { installUi } from '../src/ui'
 import { FakeRepository, makeTxn } from '../tests/support/fakeRepository'
+import { createMemoryEntryPrefs } from '../tests/support/memoryEntryPrefs'
 import { fakeAuth } from '../tests/support/mountApp'
 
 const today = indiaToday()

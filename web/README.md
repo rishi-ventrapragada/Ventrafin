@@ -42,7 +42,7 @@ node scripts/gen-icons.mjs   # regenerate src/lib/icons.generated.ts after chang
   - Alt+↓ opens a pick list.
   - Ctrl+S saves.
 
-  New rows start with today's date (India time), Expense, category **Auto**, and the last-used account and payment method. A row's problems show once you leave it. Saving stores every ready row in one request. Rows with problems stay in the grid, highlighted. Saved rows appear below the grid with the category the database gave them.
+  New rows start with today's date (India time), Expense, category **Auto**, and the last-used account and payment method. A row's problems show once you leave it. Saving stores every ready row in one request. Rows with problems stay in the grid, highlighted. Saved rows appear below the grid with the category the database gave them. Rows typed but not saved are never lost silently: leaving the page asks "Discard changes?", and closing or reloading the tab gets the browser's own prompt.
 - **Paste from Excel**: paste several cells anywhere in the grid (or use the button).
   - A preview shows how Ventrafin read each column. Change any column it got wrong.
   - It marks rows that can't be saved and says why.
@@ -53,7 +53,8 @@ node scripts/gen-icons.mjs   # regenerate src/lib/icons.generated.ts after chang
     - Indian dates (`dd/mm/yyyy`, `25-Sep-26`, `25/09`, Excel day numbers);
     - amounts with `₹`, `Rs`, commas, `-500`, `(500)`, `Dr`/`Cr`;
     - payment words like GPay, PhonePe, "credit card".
-- **Transactions**: click a cell to edit it in place. Enter or Tab saves, Esc cancels. Changing a category teaches the database's learning trigger, as on the phone. Filter by month (kept in the URL), account, category (including *Uncategorized* and *Transfers*) and text. Delete one row or several; both ask first.
+- **Transactions**: click a cell to edit it in place, or Tab to it and press Enter or F2. Enter or Tab saves, Esc cancels, and the focus goes back to the cell. Changing a category teaches the database's learning trigger, as on the phone. Filter by month (kept in the URL), account, category (including *Uncategorized* and *Transfers*) and text; tick **All months** to search every month. Delete one row or several; both ask first (Cancel is the default), and **Undo** brings them back for 5 seconds.
+- **Categories and Accounts**: add them, rename them (categories also get an icon and colour; a new one's are picked by the database), and archive them. Archived ones leave the pickers for new entries but keep their name on old ones, and wait at the bottom of the page with **Restore**. The last active account can't be archived.
 - **Reports**: pick any month for its totals and categories against the month before, then 6- or 12-month trends: income against spending, and spending by category (top five in the chart, every category in the table below it). Hover a month in a chart to see its numbers.
 - **Bills**: what's due, soonest first; overdue in red, due within a week in amber. **Mark paid** can add the payment to Transactions in the same step. Add, edit, delete, and switch a bill's reminder on or off here; the reminders themselves pop up on the phone.
 - **Export (CSV for Excel)**: on Transactions (first choice: exactly what's on screen, filters included) and in Settings (this or last month, this or last financial year, all time, or any dates). The file is built by the database, so the phone's export is identical. It opens in Excel with a double-click.
@@ -84,16 +85,18 @@ src/
               (revisions per table, Realtime, online state, liveQuery), entry prefs, passkeys
               (Windows Hello: support checks, Supabase calls, plain-language errors), gridHandoff
   components/ icons, category/merchant/account badges, ComboInput (pick-list cell), month switcher,
-              donut, bar chart (SVG), bill + mark-paid dialogs, app shell,
+              donut, bar chart (SVG), bill + mark-paid + account + category dialogs, LoadError
+              (reason + Retry), useAsk (confirms as promises, "Discard changes?"), app shell,
               add/ (EntryGrid, PasteDialog, SavedPanel), import/ (RowsPreview + previewRows shared by
               paste and CSV import, ImportDialog), ExportDialog, PasskeySection
   pages/      Dashboard, Transactions, Add, Categories, Accounts, Bills, Reports, Settings, Login,
               AuthCallback, NotFound
 tests/
   unit/       money, dates, paste, entryRow, cellEdit, visuals (icons/palette/badges = phone), deploy (CSP),
-              themes (all six: contrast, category colours, glyphs = phone), reportsBills,
+              themes (all six: contrast, category colours, glyphs = phone, toasts), reportsBills, archiving,
               importExport (CSV round trip of the SQL export, ranges, duplicates, passkey errors)
   components/ Add grid; Transactions, Categories, Dashboard, Realtime, sign-in guard; Reports, Bills,
-              Settings theme (phase567); export, import, Windows Hello (phase7)
-  support/    fake repository, mountApp helper
+              Settings theme (phase567); export, import, Windows Hello (phase7); unsaved changes, all-months
+              search, load errors, keyboard editing, undo, dialogs, accounts and categories (audit1)
+  support/    fake repository, mountApp helper, in-memory entry prefs
 ```

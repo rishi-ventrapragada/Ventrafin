@@ -6,10 +6,12 @@ import { AppError } from '@/lib/errors'
 import { methodLabel } from '@/lib/models'
 import type {
   Account,
+  AccountType,
   Bill,
   BillDraft,
   Category,
   CategoryComparison,
+  CategoryKind,
   MarkPaidResult,
   MonthlyCategoryTotal,
   MonthlyTotal,
@@ -25,9 +27,9 @@ export const FIXED_NOW = new Date('2026-09-24T19:00:00Z')
 export const fixedClock = () => FIXED_NOW
 
 export const ACCOUNTS: Account[] = [
-  { id: 'acc-bank', name: 'Bank', type: 'bank' },
-  { id: 'acc-cash', name: 'Cash', type: 'cash' },
-  { id: 'acc-cc', name: 'Credit Card', type: 'credit' },
+  { id: 'acc-bank', name: 'Bank', type: 'bank', archived: false },
+  { id: 'acc-cash', name: 'Cash', type: 'cash', archived: false },
+  { id: 'acc-cc', name: 'Credit Card', type: 'credit', archived: false },
 ]
 
 export const CATEGORIES: Category[] = [
@@ -101,6 +103,59 @@ export class FakeRepository implements FinanceRepository {
   async fetchCategories() {
     await this.wait()
     return this.categories.map((c) => ({ ...c }))
+  }
+
+  accountWrites: { op: 'insert' | 'update' | 'archive' | 'restore'; id: string; name?: string; type?: AccountType }[] = []
+  failNextAccountWriteWith: unknown = null
+
+  private accountFailure() {
+    const failure = this.failNextAccountWriteWith
+    this.failNextAccountWriteWith = null
+    if (failure) throw failure
+  }
+
+  private accountNameTaken(name: string, exceptId: string) {
+    const lower = name.trim().toLowerCase()
+    return this.accounts.some((a) => a.id !== exceptId && a.name.trim().toLowerCase() === lower)
+  }
+
+  async insertAccount(id: string, name: string, type: AccountType) {
+    this.accountWrites.push({ op: 'insert', id, name, type })
+    await this.wait()
+    this.accountFailure()
+    const again = this.accounts.find((a) => a.id === id)
+    if (again) return { ...again } // a retry of a save that went through
+    if (this.accountNameTaken(name, id)) throw new AppError('duplicate key value violates unique constraint "accounts_owner_name_key"', '23505')
+    const account: Account = { id, name: name.trim(), type, archived: false }
+    this.accounts.push(account)
+    this.emit({ table: 'accounts' })
+    return { ...account }
+  }
+
+  async updateAccount(id: string, name: string, type: AccountType) {
+    this.accountWrites.push({ op: 'update', id, name, type })
+    await this.wait()
+    this.accountFailure()
+    const a = this.accounts.find((x) => x.id === id)
+    if (!a) throw new AppError('Account not found', 'PGRST116')
+    if (this.accountNameTaken(name, id)) throw new AppError('duplicate key value violates unique constraint "accounts_owner_name_key"', '23505')
+    Object.assign(a, { name: name.trim(), type })
+    this.emit({ table: 'accounts' })
+    return { ...a }
+  }
+
+  /** Like the accounts_keep_one_active trigger: the last active account can't be archived. */
+  async setAccountArchived(id: string, archived: boolean) {
+    this.accountWrites.push({ op: archived ? 'archive' : 'restore', id })
+    await this.wait()
+    this.accountFailure()
+    const a = this.accounts.find((x) => x.id === id)
+    if (!a) throw new AppError('Account not found', 'PGRST116')
+    if (archived && !a.archived && !this.accounts.some((x) => x.id !== id && !x.archived)) {
+      throw new AppError('Keep at least one active account.', '23514')
+    }
+    a.archived = archived
+    this.emit({ table: 'accounts' })
   }
 
   async fetchTransactions(month: YearMonth) {
@@ -280,6 +335,32 @@ export class FakeRepository implements FinanceRepository {
     Object.assign(c, { name: edit.name.trim(), icon: edit.icon, color: edit.color })
     this.emit({ table: 'categories' })
     return { ...c }
+  }
+
+  categoryInserts: { name: string; kind: CategoryKind }[] = []
+  categoryArchives: { id: string; archived: boolean }[] = []
+
+  /** Like the database: the name must be free for that kind; the icon and colour are picked for it. */
+  async insertCategory(name: string, kind: CategoryKind) {
+    this.categoryInserts.push({ name, kind })
+    await this.wait()
+    const trimmed = name.trim()
+    if (this.categories.some((c) => c.kind === kind && c.name.toLowerCase() === trimmed.toLowerCase())) {
+      throw new AppError('duplicate key value violates unique constraint', '23505')
+    }
+    const c: Category = { id: `cat-new-${this.categories.length + 1}`, name: trimmed, kind, color: '#8E24AA', archived: false, icon: 'label' }
+    this.categories.push(c)
+    this.emit({ table: 'categories' })
+    return { ...c }
+  }
+
+  async setCategoryArchived(id: string, archived: boolean) {
+    this.categoryArchives.push({ id, archived })
+    await this.wait()
+    const c = this.categories.find((x) => x.id === id)
+    if (!c) throw new AppError('Category not found', 'PGRST116')
+    c.archived = archived
+    this.emit({ table: 'categories' })
   }
 
   monthlyTotals: MonthlyTotal[] = []
