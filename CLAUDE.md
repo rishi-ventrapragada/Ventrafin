@@ -48,6 +48,10 @@ DECISIONS.md
 The hosted project is managed through the **Supabase MCP server** (`.mcp.json`, scoped to the Ventrafin project). The Supabase CLI is not used.
 
 - **Migration file first, then apply.** Every schema change starts as a new file `/supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql`. Only then apply it with the MCP `apply_migration` tool, using the file's exact contents and the same `<name>`. Never change the hosted schema without a matching file in the repo.
+- **Don't apply a migration until the human has approved its branch.** Dad uses the app with real data, so the hosted project is production.
+  - On the feature branch: write the migration file and its pgTAP tests, commit and push them, and say they are not applied yet.
+  - Apply them with `apply_migration` only after the human approves the branch. Then do the version rename, hash check, tests and advisors (below) before merging.
+  - Code that needs the new schema must not reach `main`, and so production, before the migration is applied.
 - **Match the version after applying.** `apply_migration` stamps its own version (the apply time), so rename the file to `<version from list_migrations>_<name>.sql` and confirm the file's SHA-256 equals the stored statements (`supabase_migrations.schema_migrations`). Repo and hosted history must match exactly.
 - **Never run DDL through `execute_sql`.** `execute_sql` is for read-only checks and for the rolled-back test runs below. Don't edit applied migration files; fix things with a new migration.
 - **After applying, verify:** `list_migrations` must match `/supabase/migrations`, and `get_advisors` (security + performance) should be clean. Fix any findings with new migration files.
