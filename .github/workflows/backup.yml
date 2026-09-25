@@ -1,0 +1,174 @@
+# Weekly backup of Ventrafin's data (PRD § 5, DECISIONS.md D27, supabase/BACKUPS.md).
+#
+# Dumps the app tables (schema public: profiles, accounts, categories,
+# category_rules, transactions, recurring_bills) with the read-only
+# `ventrafin_backup` role, encrypts the dump with a passphrase, and keeps it
+# as a workflow artifact for 90 days. The schema itself is in
+# /supabase/migrations; this backs up the data.
+#
+# Secrets (repo > Settings > Secrets and variables > Actions), created with
+# scripts/backup-credentials.mjs. They exist only there, never in the repo
+# or in either app:
+#   BACKUP_DB_URL      Session-pooler connection string for ventrafin_backup
+#   BACKUP_PASSPHRASE  encryption passphrase (also kept in a password manager)
+#
+# Scheduled runs only happen from the default branch (main).
+name: Weekly database backup
+
+on:
+  schedule:
+    # Sundays 21:30 UTC = Mondays 03:00 in India, when nobody is entering data.
+    - cron: '30 21 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PG_BIN: /usr/lib/postgresql/17/bin
+    steps:
+      - name: Check the secrets are set
+        env:
+          BACKUP_DB_URL: ${{ secrets.BACKUP_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=0
+          if [ -z "$BACKUP_DB_URL" ]; then echo "::error::Secret BACKUP_DB_URL is not set. See supabase/BACKUPS.md."; missing=1; fi
+          if [ -z "$BACKUP_PASSPHRASE" ]; then echo "::error::Secret BACKUP_PASSPHRASE is not set. See supabase/BACKUPS.md."; missing=1; fi
+          if [ -n "$BACKUP_PASSPHRASE" ] && [ "${#BACKUP_PASSPHRASE}" -lt 20 ]; then
+            echo "::error::BACKUP_PASSPHRASE is shorter than 20 characters. Generate one with scripts/backup-credentials.mjs."; missing=1
+          fi
+          case "$BACKUP_DB_URL" in
+            *ventrafin_backup.*) ;;
+            "") ;;
+            *) echo "::error::BACKUP_DB_URL must log in as the read-only ventrafin_backup role, not postgres."; missing=1 ;;
+          esac
+          exit $missing
+
+      - name: Install the PostgreSQL 17 client (same major version as the server)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          "$PG_BIN/pg_dump" --version
+
+      - name: Dump the data
+        id: dump
+        env:
+          BACKUP_DB_URL: ${{ secrets.BACKUP_DB_URL }}
+          PGCONNECT_TIMEOUT: '30'
+          PGAPPNAME: ventrafin-backup
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y-%m-%d)
+          name="ventrafin-backup-$stamp"
+          work="$RUNNER_TEMP/$name"
+          mkdir -p "$work"
+
+          # Plain SQL INSERTs with column names: readable, restorable with psql
+          # or the SQL editor, and tolerant of columns added later.
+          "$PG_BIN/pg_dump" "$BACKUP_DB_URL" \
+            --data-only --schema=public \
+            --no-owner --no-privileges \
+            --column-inserts --rows-per-insert=500 \
+            --file "$work/data.sql"
+
+          psql() { "$PG_BIN/psql" "$BACKUP_DB_URL" -X -q -v ON_ERROR_STOP=1 "$@"; }
+
+          # Row counts: in the manifest, and (only the numbers) in the run summary.
+          psql -At -F ': ' -c "
+            select 'transactions', count(*) from public.transactions union all
+            select 'categories', count(*) from public.categories union all
+            select 'accounts', count(*) from public.accounts union all
+            select 'recurring_bills', count(*) from public.recurring_bills union all
+            select 'category_rules', count(*) from public.category_rules union all
+            select 'profiles', count(*) from public.profiles" > "$RUNNER_TEMP/counts.txt"
+
+          # What the dump matches: the latest migration, and who owns the rows
+          # (needed to restore into a new project, see supabase/BACKUPS.md).
+          {
+            echo "Ventrafin backup $stamp (made $(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            echo "pg_dump: $("$PG_BIN/pg_dump" --version)"
+            echo "server: $(psql -At -c 'show server_version')"
+            echo
+            echo "Latest migration: $(psql -At -F ' ' -c 'select version, name from supabase_migrations.schema_migrations order by version desc limit 1')"
+            echo
+            echo "Rows per table:"
+            cat "$RUNNER_TEMP/counts.txt"
+            echo
+            echo "Owners (auth user ids) and their transactions:"
+            psql -At -F ': ' -c "
+              select p.id, count(t.id) from public.profiles p
+              left join public.transactions t on t.owner_id = p.id group by p.id order by 2 desc"
+          } > "$work/manifest.txt"
+          psql -At -F ' ' -c 'select version, name from supabase_migrations.schema_migrations order by version' > "$work/migrations.txt"
+
+          # A dump that is empty or lost its tables is a failure, not a backup.
+          while IFS=': ' read -r table rows; do
+            if [ "$rows" != "0" ] && ! grep -q "INSERT INTO public.$table " "$work/data.sql"; then
+              echo "::error::public.$table has $rows rows but none are in the dump"
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/counts.txt"
+
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "work=$work" >> "$GITHUB_OUTPUT"
+
+      - name: Encrypt, check it decrypts, and remove the plain copy
+        id: encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          NAME: ${{ steps.dump.outputs.name }}
+          WORK: ${{ steps.dump.outputs.work }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          file="$out/$NAME.tar.gz.gpg"
+          # AES-256, passphrase stretched with SHA-512 and the maximum S2K count.
+          tar -C "$RUNNER_TEMP" -czf - "$NAME" \
+            | gpg --batch --yes --quiet --pinentry-mode loopback \
+                  --passphrase-file <(printf '%s' "$BACKUP_PASSPHRASE") \
+                  --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011712 \
+                  --compress-algo none --output "$file"
+          # Decrypt it again before uploading: a backup that can't be opened is worthless.
+          gpg --batch --quiet --pinentry-mode loopback \
+              --passphrase-file <(printf '%s' "$BACKUP_PASSPHRASE") --decrypt "$file" \
+            | tar -tzf - > "$RUNNER_TEMP/listing.txt"
+          grep -qx "$NAME/data.sql" "$RUNNER_TEMP/listing.txt"
+          rm -rf "$WORK"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "$file" | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Keep it for 90 days
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: ${{ steps.encrypt.outputs.file }}
+          archive: false
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Summary
+        env:
+          NAME: ${{ steps.dump.outputs.name }}
+          SIZE: ${{ steps.encrypt.outputs.size }}
+        run: |
+          {
+            echo "### Backup $NAME.tar.gz.gpg ($SIZE, encrypted)"
+            echo
+            echo "Kept for 90 days under **Artifacts** below. Restore steps: supabase/BACKUPS.md."
+            echo
+            echo "| table | rows |"
+            echo "|---|---|"
+            sed 's/: / | /; s/^/| /; s/$/ |/' "$RUNNER_TEMP/counts.txt"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -15,6 +15,7 @@ import 'package:ventrafin/features/reminders/reminder_prompt.dart';
 import 'package:ventrafin/features/reminders/reminder_sync.dart';
 import 'package:ventrafin/features/reports/report_data.dart';
 import 'package:ventrafin/features/reports/reports_screen.dart';
+import 'package:ventrafin/features/settings/export_sheet.dart';
 import 'package:ventrafin/features/settings/settings_screen.dart';
 
 import 'support/fake_repository.dart';
@@ -325,6 +326,31 @@ void main() {
       );
       return (repo, notifications);
     }
+
+    testWidgets('Your data: Export opens the sheet and shares the CSV', (tester) async {
+      final shared = <String>[];
+      final repo = FakeRepository()..bills = [_bill()];
+      await pumpWithFakes(
+        tester,
+        const SettingsScreen(),
+        repo: repo,
+        surfaceSize: const Size(412, 2400),
+        overrides: <Override>[
+          reminderNotificationsProvider.overrideWithValue(FakeNotifications()),
+          currentUserProvider.overrideWithValue(null),
+          csvSharerProvider.overrideWithValue(({required String fileName, required String csv}) async {
+            shared.add(fileName);
+          }),
+        ],
+      );
+      expect(find.text('Backups'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('export-tile')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('export-share')));
+      await tester.pumpAndSettle();
+      expect(shared, ['ventrafin-transactions-2026-09-01-to-2026-09-30.csv']);
+      expect(find.text('Exported 1 transaction.'), findsOneWidget);
+    });
 
     testWidgets('toggles save to the profile; daily and bill switches are separate', (tester) async {
       final (repo, _) = await pumpSettings(tester);

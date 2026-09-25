@@ -19,8 +19,12 @@ Never change the schema through the dashboard. Add a new migration instead.
 | `…040030_category_icons` | `categories.icon` (curated Material Symbols keys), a curated palette, distinct built-in colours, and a trigger that fills in the default icon and colour. Backfills existing rows |
 | `…044748_category_builtin_link` | `categories.builtin_name`: a category keeps its built-in keywords when renamed ("Food" → "Khana" still gets Swiggy). Trigger-maintained; the categorizer uses it before the name (DECISIONS.md D18) |
 | `…102935_reports_bills_reminders` | Phases 5–6: `get_monthly_totals` (zero-filled month range), `recurring_bills.paid_through_month` (filled in on insert), `get_bill_schedule` (next due date, status, overdue months), `mark_bill_paid` (settle a month and optionally log the expense, retry-safe), `profiles.daily_reminder_time` and `profiles.bill_reminder_days_before` (DECISIONS.md D21, D23, D24) |
+| `…142716_transactions_csv_export` | Phase 7: `export_transactions_csv(from, to, ids)` returns the CSV file both apps save (one text value; formula-guarded cells) (DECISIONS.md D25) |
+| `…142724_backup_reader_role` | Phase 7: `ventrafin_backup`, the read-only login for the weekly backup (SELECT on public tables, BYPASSRLS, read-only transactions, no password in the repo) (DECISIONS.md D27) |
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
+
+**Backups** (weekly, encrypted, via GitHub Actions): setup, checking and restoring are in [`BACKUPS.md`](BACKUPS.md).
 
 ## Applying changes (Supabase MCP, not the CLI)
 
@@ -40,7 +44,7 @@ The full rules are in the root `CLAUDE.md` ("Database changes via Supabase MCP")
 
 ## Tests (pgTAP, `tests/*.test.sql`)
 
-Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`07`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders.
+Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`09`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders, CSV export, backup role.
 
 - **Normally, via the Supabase MCP (`execute_sql`).** `execute_sql` runs the whole script as one transaction and returns only the last statement's result. So send the file's statements with three changes:
   1. drop `begin;`
@@ -73,6 +77,7 @@ supabase.rpc('get_monthly_category_totals', { p_from_month: '2026-01-01', p_to_m
 supabase.rpc('get_monthly_totals', { p_from_month: '2026-04-01', p_to_month: '2026-09-01' })   // one row per month, zeros included
 supabase.rpc('get_bill_schedule')                                   // bills with next due date + status
 supabase.rpc('mark_bill_paid', { p_bill_id, p_month: '2026-09-01', p_txn_id })   // p_txn_id: also log the expense
+supabase.rpc('export_transactions_csv', { p_from: '2026-04-01', p_to: '2027-03-31' })   // the CSV file as text; omit both for all time
 ```
 ```dart
 supabase.rpc('get_month_comparison', params: {'p_month': '2026-08-01'});

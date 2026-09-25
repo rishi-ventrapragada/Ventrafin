@@ -52,6 +52,10 @@ abstract interface class FinanceRepository {
 
   Future<void> deleteTransaction(String id);
 
+  /// `export_transactions_csv()`: the CSV file both apps share, built in
+  /// Postgres. [from] and [to] are inclusive; null means no limit.
+  Future<String> exportTransactionsCsv({DateTime? from, DateTime? to});
+
   /// `get_monthly_totals(from, to)`: one row per month, oldest first,
   /// empty months as zeros.
   Future<List<MonthlyTotal>> fetchMonthlyTotals(YearMonth from, YearMonth to);

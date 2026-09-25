@@ -148,6 +148,12 @@ Because two independently-built clients write to the same data, any logic that m
 - **Bills** (`DECISIONS.md` D23): every month has one instance of a bill, due on `due_day` clamped to the month's last day (`private.bill_due_date`).
   - `get_bill_schedule(p_today default null)`: each bill with `next_due_date` (the month after `paid_through_month`), `days_until` (negative = overdue), `status` (`overdue` / `due_today` / `due_soon` within 7 days / `upcoming`) and `overdue_count`. Both apps show it; the phone schedules reminders from it.
   - `mark_bill_paid(p_bill_id, p_month, p_txn_id, p_amount_paise, p_paid_on, p_payment_method)`: sets `paid_through_month` to `p_month` and, with `p_txn_id`, inserts the payment as an expense (the bill's name, account and category) in the same transaction. When the month is already paid it changes nothing and logs nothing, so a retry or the same tap on the other app can't double-count. Undo is a plain update of `paid_through_month`.
+- **CSV export** (`DECISIONS.md` D25): `export_transactions_csv(p_from, p_to, p_ids)` returns the whole file as one text value (SECURITY INVOKER, own rows only), so both apps save the same file:
+  - columns `Date, Description, Amount (₹), Type, Category, Account, To account, Paid by`;
+  - ISO dates, rupees with two decimals, oldest first, CRLF line endings;
+  - "Uncategorized" for no category, an empty category for transfers;
+  - an apostrophe before cells starting with `= + - @` (formula guard);
+  - `p_from`/`p_to` are inclusive (NULL = open), and `p_ids` limits it to given rows. The apps add the UTF-8 byte-order mark.
 - **Category icon and colour defaults**: a `BEFORE INSERT` trigger on `categories` fills in whichever of `icon` / `color` the client left out:
   - a built-in name gets its built-in icon and colour;
   - a name that the built-in keyword list recognises ("Petrol") gets that category's icon;
@@ -189,11 +195,16 @@ create policy "owner can delete own rows" on <table>
 - `auth.uid()` is wrapped in `(select …)` so Postgres evaluates it once per statement.
 - The composite FKs in § 2 close the cross-user-reference gap that RLS alone leaves open.
 
+**One role outside the app bypasses RLS: `ventrafin_backup`** (`DECISIONS.md` D27), the login the weekly backup uses.
+- It has BYPASSRLS and SELECT on the `public` tables, plus tables created later via default privileges.
+- It has no write privileges, `default_transaction_read_only = on`, no access to `auth` or `private`, and at most 2 connections.
+- Its password is set once by the owner (as a SCRAM verifier) and exists only in a GitHub Actions secret. Neither app, nor the API, can use it.
+
 No policy grants any cross-user access. There is no role/claim for "admin" or "viewer" anywhere in the schema or policies. Admin access to raw data happens exclusively via the Supabase dashboard (which authenticates as the project owner, outside of RLS), never through either client app. The pgTAP suite in `/supabase/tests` checks all of this against the hosted project.
 
 ## 5. Auth
 
-- **Google Sign-In** is the only auth method on both apps, via Supabase Auth's Google provider. The Email provider is off.
+- **Google Sign-In** is the account on both apps, via Supabase Auth's Google provider. The Email provider is off. The web can add Windows Hello passkeys on top (below).
 - **Web**: OAuth redirect flow. The deployed web URL and `localhost` (dev) must be in Supabase's Redirect URLs, and the Web OAuth client's JavaScript origins must include them. Google's redirect URI is only the Supabase callback.
 - **Mobile**: **native** Google Sign-In (Android Credential Manager via `google_sign_in`), with **no browser redirect**:
   - The app requests an ID token for the **Web** client ID (`serverClientId`) and passes it to `supabase.auth.signInWithIdToken(provider: google)`.
@@ -202,7 +213,14 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
   - No redirect scheme is needed for mobile.
 - **Mobile app lock** (fingerprint / pattern) is a **client-side gate on top of** an already-valid Supabase session. It is not a second authentication factor recognized by the backend. It controls whether the app *shows* data it already has a valid session for, not whether Supabase will serve that data.
 - **No password reset system** (no reset emails or codes), since there's no app-specific password. The lock screen's **"Forgot pattern?"** option signs the user out and deletes the stored pattern. They re-authenticate with Google and set a new pattern.
-- **Windows Hello (later phase)**: via Supabase's passkey/WebAuthn support. Treat as additive to Google Sign-In, not a replacement, and note that passkeys are origin-bound: the web app's final deployed domain should be settled before wiring this up.
+- **Windows Hello (web)**: Supabase Auth passkeys (beta), in addition to Google, never instead of it (`DECISIONS.md` D26).
+  - Relying party: ID `ventrafin.vercel.app`, origin `https://ventrafin.vercel.app`. Passkeys therefore don't work on localhost or Vercel preview URLs.
+  - A signed-in user registers, lists and removes passkeys in Settings (`supabase.auth.registerPasskey()`, `auth.passkey.list/delete`).
+  - The sign-in page offers `signInWithPasskey()` only when:
+    - the browser has WebAuthn;
+    - the project's public `/auth/v1/settings` says `passkeys_enabled`;
+    - this browser has seen the account use a passkey (a `localStorage` hint).
+  - A passkey sign-in produces an ordinary Supabase session, so everything after it is the same as with Google.
 
 ## 6. Mobile app (Flutter)
 
@@ -223,7 +241,11 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
 - **Navigation**: bottom nav bar (Dashboard / Transactions / Add / Bills / More). **More** leads to Categories, Accounts, Reports and Settings. Each is a distinct route, not a single scrolling page.
 - **Reports** (`/more/reports`): a month picker; that month's totals (spent, income, net, saved %) against the month before; spending and income by category with entry counts and shares; then 6- or 12-month trends ending with the chosen month: income against spending (grouped bars + table) and spending by category (stacked bars of the top five plus Other + a category × month table that scrolls sideways).
 - **Bills** (`/bills`): bills soonest due first with a status chip, a bell per bill for its reminder, and a sheet to mark a month paid (optionally logging the payment) or edit/delete. `/bills/new` and `/bills/:id` are the form.
-- **Settings**: reminders (daily switch and time, bill master switch and how many days before, notification and exact-alarm permission states, a test notification), the theme picker, app lock and sign-out.
+- **Settings**:
+  - reminders: daily switch and time, bill master switch and how many days before, notification and exact-alarm permission states, a test notification;
+  - the theme picker;
+  - **Your data**: export a CSV (this/last month, this/last financial year, all time, chosen dates) through Android's share sheet (`share_plus`), and a note on backups;
+  - app lock and sign-out.
 - **Themes** (`DECISIONS.md` D22): `buildAppTheme` builds the `ThemeData` from the generated tokens; the app bar uses the theme's brand colour, cards and sheets stay white on the theme's page colour.
 - **Entry flow**:
   - An on-screen number keypad comes first, then the other fields.
@@ -263,6 +285,13 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
   - Rows are text, like spreadsheet cells, and pass through one parser (`src/lib/entryRow.ts`) whether typed or pasted.
   - Saving inserts all ready rows in one statement, with client-generated ids so a retry can't duplicate.
   - Rows pasted from Excel go through a preview (`src/lib/paste.ts`) that detects columns, marks invalid rows and saves only after confirmation.
+- **CSV** (`DECISIONS.md` D25):
+  - **Export** on Transactions ("what the page shows", filters included, or a date range) and in Settings. The file comes from `export_transactions_csv` and is downloaded with a UTF-8 byte-order mark.
+  - **Import** in Settings: a `.csv` file becomes the same table as a paste (`src/lib/csvImport.ts`), and the shared preview (`components/import/`) checks it with the same parser. Beyond the paste flow, it:
+    - skips rows already in Transactions unless asked;
+    - saves in 500-row batches with fixed ids;
+    - sends rows with problems to the Add grid.
+- **Windows Hello**: `src/data/passkeys.ts` (Supabase implementation, support checks, plain-language errors), Settings › Sign in with Windows Hello, and the extra button on `/login`.
 - **Transactions** uses PrimeVue's DataTable in cell-edit mode. A finished cell edit becomes a one-column update (`src/lib/cellEdit.ts`); a category change is what feeds the learning trigger. Saves are shown straight away and rolled back with a message if they fail.
 - **Money** stays integer paise in state (the database's `< 10^15` bound keeps every value a safe JavaScript integer). Rupees appear only in formatted strings with Indian grouping (`₹1,23,456.00`).
 - **Dates** are ISO strings; "today" is Asia/Kolkata whatever the PC's timezone.
@@ -292,7 +321,7 @@ The web app imports the JSON; the phone's `theme_tokens.g.dart` is generated fro
 
 ## 9. What's deliberately absent
 
-- No custom backend server, API layer, or serverless functions — Postgres (via RLS + SQL functions) is the only "backend logic" layer.
+- No custom backend server, API layer, or serverless functions — Postgres (via RLS + SQL functions) is the only "backend logic" layer. The one scheduled job, the weekly backup, runs on GitHub Actions against the read-only `ventrafin_backup` role and serves no app traffic (`supabase/BACKUPS.md`).
 - No local database or offline cache on either client.
 - No client-side encryption/key management.
 - No in-app admin or shared-viewer role, and no RLS bypass reachable from either client.

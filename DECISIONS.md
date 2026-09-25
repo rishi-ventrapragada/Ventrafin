@@ -341,8 +341,123 @@ Two related rules, also on both apps:
 
 ---
 
+## D25. CSV import and export: the file is made in Postgres; import reuses the paste pipeline
+
+**Decision:**
+- **Export** is a SQL function, `export_transactions_csv(p_from, p_to, p_ids)`, that returns the whole CSV file as one text value. The web downloads it and the phone shares it, so both apps give Dad the identical file. The columns, labels, number format and quoting are defined in one place (`CLAUDE.md`: shared logic lives in Postgres). A single value also isn't cut off by the API's 1,000-row limit.
+  - Columns: `Date, Description, Amount (₹), Type, Category, Account, To account, Paid by`. These are the phrases the import (and the paste flow) already recognise as headings, so an export can be imported back unchanged. A test checks the round trip against the exact SQL output.
+  - Dates are ISO `yyyy-mm-dd`. Excel reads that as a date whatever the PC's region is and shows it in the PC's own format. Amounts are rupees with two decimals and no grouping, so Excel treats them as numbers; they are always positive, and Type gives the direction (as in the database). Oldest first. CRLF line endings.
+  - A cell starting with `= + - @` gets a leading apostrophe, so a description like `=HYPERLINK(…)` is never run as a formula (CSV injection). The import strips it again.
+  - The apps add a UTF-8 byte-order mark when writing the file. Without it Excel shows `₹` and Hindi text as garbage.
+- **Where:**
+  - Web: an **Export** button on Transactions. Its first choice is "what the page shows": the month, and only the visible rows when filters or search are on (sent as `p_ids`). The same dialog is in Settings, without that choice.
+  - Presets on both apps: this month, last month, this/last **Indian financial year** (April–March; Dad's tax year), all time, or chosen dates.
+  - Phone: Settings › Your data › Export, through Android's share sheet (`share_plus`: email, Drive, WhatsApp). The file sits in the app's private cache, which Android clears when it needs space.
+- **Import** (web Settings) reads a `.csv` file into the same table structure as a paste. Then the same column detection, row parser and preview decide everything. The preview was pulled out of the paste dialog into a shared component, so the two can't drift apart. On top of the paste flow it:
+  - reads comma, semicolon (Excel where the decimal mark is a comma) or tab files. It expects UTF-8 and falls back to Windows-1252 for Excel's older "CSV" format;
+  - lets Dad choose the account and payment method for rows that don't say (a bank statement has no Account column);
+  - marks rows **already in Transactions** (same date, amount, type, account and description) and skips them unless "Save them anyway" is ticked. Importing the same statement twice is the most likely way an import goes wrong. Repeats inside the file are kept, since two ₹20 teas on one day are real;
+  - saves in batches of 500 rows, each all-or-nothing with ids fixed per line. A failed batch can be retried without duplicating anything; each batch stays well inside the server's statement time limit;
+  - sends rows that can't be saved to the Add grid, as the paste flow does. The Add page picks them up from an in-memory hand-off.
+- Limits: 5 MB and 5,000 rows per file (a year of daily entries is far below both).
+
+**Assumptions / rejected:**
+- **CSV only, not `.xlsx`**, in both directions. An `.xlsx` writer or reader means a large dependency (SheetJS's npm package is out of date and its current builds come from its own CDN; ExcelJS is big). CSV opens in Excel with a double-click. For import, an Excel workbook is refused with "File › Save As › CSV UTF-8" instructions, and Paste from Excel remains for copying rows.
+- **Import on the web only** (as asked). The phone exports but doesn't import.
+- **Categories on import**: a named category that exists is used; otherwise the row goes to **Auto** (as with a paste), and "Uncategorized" in a re-imported export also becomes Auto. Unknown category names don't create categories.
+- Duplicate checking happens in the browser, over the file's date range (fetched in pages of 1,000). It isn't a database constraint, because genuinely identical transactions are allowed.
+
+---
+
+## D26. Windows Hello on the web: Supabase passkeys, as an extra option next to Google
+
+**State of Supabase passkeys (checked 25 Sep 2026):**
+- Announced as a **beta** on 28 May 2026 ("Passkeys for Supabase Auth") and available to every project, including the free plan. The docs still call the API **experimental**: "may change without notice".
+- The installed supabase-js (2.117.1) already includes it and no longer needs the `experimental: { passkey: true }` switch. The flag is deprecated and ignored.
+- Server side it is off by default. The dashboard setting is Authentication → Passkeys, with:
+  - **RP ID** `ventrafin.vercel.app`;
+  - **origin** `https://ventrafin.vercel.app`;
+  - display name "Ventrafin".
+- Known issues and limits found:
+  - **Changing the RP ID later invalidates every passkey.** It's safe now because the domain is final.
+  - Every origin must be the RP ID or a subdomain of it, so passkeys **can't be tested on `localhost` or on Vercel preview URLs**, only on the production site. `vercel.app` is a public suffix, so it can't be the RP ID either.
+  - Community reports say the dashboard toggle sometimes doesn't take effect on its own; the workaround is to also change an unrelated MFA setting. Password-manager quirks have also been reported (Dashlane).
+  - `userVerification` is fixed at "preferred". Windows Hello always verifies the user anyway.
+  - Sign-in uses discoverable credentials, and there is no way to ask the server "does this person have a passkey?" before signing in.
+  - SSO (SAML) and anonymous users can't register passkeys. Google OAuth users can.
+
+**Decision:**
+- Google stays the main way in on both apps. Windows Hello is **additional**, on the web only.
+- It's set up from **Settings › Sign in with Windows Hello** while signed in: register, list (name, set up, last used), remove.
+- The sign-in page shows "Sign in with Windows Hello" only where all of these hold:
+  1. the browser supports WebAuthn in a secure context;
+  2. the project has passkeys switched on. The client reads `passkeys_enabled` from Supabase's public `/auth/v1/settings`, so there's no guessing, and until the dashboard switch is on the whole feature stays hidden;
+  3. this browser has seen the account use a passkey. A `localStorage` flag records it: set on registering or signing in, updated whenever Settings lists passkeys, cleared when a sign-in finds the passkey was removed.
+- If the browser can't do it, or the server has it off, Settings says so in one line and shows no button. If the PC has no Windows Hello set up, Settings says where to turn it on, and a phone or security key can still be used.
+- Errors are shown in plain words. Cancelling the Windows prompt is not an error. A passkey removed from the account tells Dad to sign in with Google and set it up again. On a wrong address (a preview URL) it says passkeys only work on `ventrafin.vercel.app`.
+- The phone is unchanged: it already has fingerprint + pattern lock over a Google session (D12).
+
+**Rejected:** replacing Google with passkeys (a lost PC would lock Dad out, and the PRD makes Google the account). Also rejected: a third-party WebAuthn library or our own server (Supabase does the ceremony and verification, and the app has no server by design). And conditional-UI autofill: it needs an input field on the login page, and its challenges expire while the prompt waits.
+
+---
+
+## D27. Backups: weekly encrypted `pg_dump` from GitHub Actions, kept as a 90-day artifact
+
+**The constraint:** the free plan has no backups and the project has no server, so something outside Supabase has to run on a schedule. A GitHub Actions scheduled workflow does (`.github/workflows/backup.yml`). The runbook for setup, checking and restoring is `supabase/BACKUPS.md`.
+
+**What runs:**
+- Weekly (Monday 03:00 IST), and by hand.
+- `pg_dump --data-only --schema=public` as INSERT statements with column names (readable; restorable with `psql` or the SQL Editor), plus a manifest (row counts, latest migration, user ids) and the migration list.
+- Packed with `tar.gz`, then **encrypted with AES-256 (`gpg --symmetric`)** using a passphrase. The job **decrypts its own output** before uploading, as proof the backup opens.
+- The run summary shows the file size and row counts only.
+- The schema isn't dumped (it is `/supabase/migrations`), and neither is `auth.*` (see below).
+
+**Where it lands (the choice asked for), and why:**
+
+| Option | For | Against |
+|---|---|---|
+| **Workflow artifact, 90-day retention (chosen)** | Needs no other account, token or service: only the two secrets. Stays inside this private repo's access control. Old copies **delete themselves**, so Dad's financial history isn't piling up in more places than needed. Free (a few hundred KB per copy against 500 MB) | At most 90 days of history (about 13 copies): data lost and noticed later than that can't be recovered from backups. If backups silently stop, the last copy expires 90 days later |
+| Commit to a private `backups` branch in this repo | Unlimited history, simple | Dad's data would live **forever** in the code repo's git history. Anyone given the repo (a future collaborator) gets it all, and removing it means rewriting history. Vercel's GitHub integration would also try to build that branch as a preview |
+| Commit to a separate private backups repo | Unlimited, versioned, separate from code | Needs a personal access token with write access to another repo, which expires and is one more secret. Also keeps every copy forever unless pruned |
+| Email to Rishi | Lands somewhere he already looks | Needs mail-server credentials (another secret), attachment limits, and copies sit in a mailbox indefinitely |
+| Cloud storage (Drive, S3, R2) | Durable, long retention | Another account, service credentials and a setup process. More moving parts than the size of this app warrants |
+
+The artifact wins on privacy and simplicity. Its weak point is the 90-day window, which is covered by:
+1. GitHub emails when a scheduled run fails;
+2. every run's summary shows row counts, so a run that "worked" on an empty database stands out;
+3. Dad can export a CSV any time (D25), a second, human-readable copy on his own PC.
+
+If longer history is wanted later, the least-effort upgrade is a second, monthly job that pushes the same encrypted file to a separate private repo. The encryption already makes that safe to add.
+
+**Why encrypt when the repo is private:**
+- The backup is a second copy of Dad's data held by another company (GitHub/Microsoft), and anyone who gets into Rishi's GitHub account could download it.
+- With encryption, GitHub stores only ciphertext.
+- The cost is that the passphrase must be kept outside GitHub (secrets can't be read back), in Rishi's password manager. `scripts/backup-credentials.mjs` generates it and says so.
+
+**Credentials (least privilege):**
+- The dump logs in as `ventrafin_backup` (migration `…142724`), not as `postgres`. The role:
+  - can SELECT the app tables (with BYPASSRLS so it sees every user's rows) and the migration history;
+  - can't write, and every transaction it starts is read-only;
+  - can't read `auth`, and has at most 2 connections.
+- A leaked `BACKUP_DB_URL` exposes data but can't damage or delete anything, while a leaked `postgres` URL could.
+- Its password is never in the repo. The owner sets it once in the SQL Editor as a **SCRAM-SHA-256 verifier** made by the script, so even the dashboard's query history holds only a salted hash.
+- It connects through the **Session pooler**: GitHub's runners are IPv4-only and the direct host is IPv6-only on the free plan.
+- The two secrets (`BACKUP_DB_URL`, `BACKUP_PASSPHRASE`) exist only in GitHub Actions repository secrets. The free plan has no environment-scoped secrets for private repos.
+
+**Why no `auth` data:**
+- `postgres` can't grant access to the `auth` schema.
+- Leaving it out keeps session and identity details out of every copy.
+- Restoring into a *new* project therefore maps Dad's old user id to the new one with a text replace, since every row carries `owner_id`.
+- Restoring into the *same* project (the likely case: something deleted by mistake) needs no mapping.
+
+**Accepted gaps:**
+- Weekly means up to 7 days of entries can be lost. At Dad's scale a CSV export or re-entry covers that.
+- A restore needs `psql` 17 (or Docker) on the admin's PC.
+- Actions jobs are pinned to commit SHAs (`upload-artifact` v7.0.1), and the job has only `contents: read`.
+
+---
+
 ## Open items not yet decided
 
-- Exact backup/export mechanism for guarding against Supabase's lack of free-tier backups (flagged in `PRD.md` § 5, not yet solved).
 - Whether Rishi (or another second party) gets any visibility into the data beyond dashboard-level admin access — currently: no, private to the primary user only.
-- Windows Hello / passkey rollout timing — deferred to a later polish phase, contingent on the web app's deployed domain being finalized first (passkeys are origin-bound).
+- Whether 90 days of backup history is enough (D27), or a longer-lived monthly copy should be added.

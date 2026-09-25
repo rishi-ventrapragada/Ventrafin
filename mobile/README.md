@@ -58,9 +58,10 @@ lib/
     reports/     any month by category, 6/12-month income-vs-spending and category trends (fl_chart + tables)
     bills/       bills list with due status, add/edit form, "Mark paid" sheet
     reminders/   reminder plan (pure), flutter_local_notifications wrapper, sync provider, permission prompt
-    shell/ settings/  bottom nav, dashboard, More; settings (reminders, theme, app lock, sign out)
+    shell/ settings/  bottom nav, dashboard, More; settings (reminders, theme, your data: CSV export
+                 via the share sheet, app lock, sign out); export_range.dart mirrors the web's presets
 tool/            gen_theme_tokens.dart
-test/            money, pattern-hash, category-style, theme (contrast on all six themes) and reminder-plan
+test/            money, pattern-hash, category-style, theme (contrast on all six themes), reminder-plan and export
                  unit tests; add-flow, screen and large-text layout widget tests
                  (support/fake_repository.dart is the shared in-memory repository)
 ```

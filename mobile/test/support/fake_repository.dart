@@ -125,6 +125,24 @@ class FakeRepository implements FinanceRepository {
   @override
   Future<void> deleteTransaction(String id) async => deletedTxnIds.add(id);
 
+  /// Every export request, and what it returns (the real format is pinned
+  /// by supabase/tests/08_csv_export.test.sql).
+  final exportCalls = <({DateTime? from, DateTime? to})>[];
+  String exportCsv = 'Date,Description,Amount (₹),Type,Category,Account,To account,Paid by\r\n'
+      '2026-09-20,Swiggy dinner,450.00,Expense,Food,Cash,,UPI\r\n';
+  Object? failNextExportWith;
+
+  @override
+  Future<String> exportTransactionsCsv({DateTime? from, DateTime? to}) async {
+    exportCalls.add((from: from, to: to));
+    final failure = failNextExportWith;
+    if (failure != null) {
+      failNextExportWith = null;
+      throw failure;
+    }
+    return exportCsv;
+  }
+
   /// What fetchMonthlyTotals / fetchMonthlyCategoryTotals return.
   List<MonthlyTotal> monthlyTotals = const [];
   List<MonthlyCategoryTotal> monthlyCategoryTotals = const [];

@@ -80,7 +80,7 @@ Dad does not want spending limits. **Do not build budget caps or overspend alert
 ### 4.10 Security & access
 - **Google Sign-In** on both apps — no separate password to manage or reset.
 - **Mobile:** app lock via fingerprint, with an in-app pattern (Android-style dot pattern) as fallback. The lock screen shows a visible **"Forgot pattern?"** option (Dad asked for a forgot-password option): it signs him out, he signs back in with Google, and sets a new pattern. No separate reset emails or recovery codes.
-- **Web:** Google session is the login. Windows Hello (via Supabase passkeys) is a **later-phase nice-to-have**, not required for launch.
+- **Web:** Google session is the login. Windows Hello (via Supabase passkeys) can be set up in Settings as an additional way to sign in on that PC (phase 7, `DECISIONS.md` D26).
 - **RLS on every table** — a signed-in user can only ever see and modify rows they own. No exceptions and no in-app admin role. The admin manages data exclusively through the Supabase dashboard, outside the app.
 
 ## 5. Non-functional requirements
@@ -89,7 +89,7 @@ Dad does not want spending limits. **Do not build budget caps or overspend alert
 - **Realtime sync**: a change made on one app should appear on the other within a few seconds, using Supabase Realtime — no manual refresh needed.
 - **UI density**: detailed/dense views, not oversized simplified UI — Dad is an experienced Excel user, not someone who needs hand-holding.
 - **Navigation**: multi-page/multi-route on both apps (sidebar or bottom nav + distinct routes), not single long scrolling screens.
-- **Backups**: since the Supabase free tier has no automatic backups, a periodic (e.g. weekly) export mechanism should exist so data isn't reliant on Supabase alone. Exact mechanism is open — flag as a follow-up if not solved during initial build.
+- **Backups**: since the Supabase free tier has no automatic backups, a periodic (e.g. weekly) export mechanism should exist so data isn't reliant on Supabase alone. Solved in phase 7 with a weekly, encrypted GitHub Actions dump kept for 90 days (`DECISIONS.md` D27, `supabase/BACKUPS.md`).
 
 ## 6. Out of scope (initial build)
 

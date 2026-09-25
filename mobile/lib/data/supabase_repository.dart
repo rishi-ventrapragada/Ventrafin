@@ -116,6 +116,19 @@ class SupabaseFinanceRepository implements FinanceRepository {
       });
 
   @override
+  Future<String> exportTransactionsCsv({DateTime? from, DateTime? to}) => _run(() async {
+        final csv = await _client.rpc<dynamic>(
+          'export_transactions_csv',
+          params: {
+            if (from != null) 'p_from': toIsoDate(from),
+            if (to != null) 'p_to': toIsoDate(to),
+          },
+        );
+        if (csv is! String) throw const PostgrestException(message: 'export_transactions_csv returned no file');
+        return csv;
+      });
+
+  @override
   Future<void> deleteTransaction(String id) => _run(() async {
         // .select() makes a no-op delete (row already gone, or not ours)
         // visible instead of silently "succeeding".
