@@ -52,6 +52,46 @@ abstract interface class FinanceRepository {
 
   Future<void> deleteTransaction(String id);
 
+  /// `get_monthly_totals(from, to)`: one row per month, oldest first,
+  /// empty months as zeros.
+  Future<List<MonthlyTotal>> fetchMonthlyTotals(YearMonth from, YearMonth to);
+
+  /// `get_monthly_category_totals(from, to)`: per month and category.
+  Future<List<MonthlyCategoryTotal>> fetchMonthlyCategoryTotals(YearMonth from, YearMonth to);
+
+  /// The signed-in user's settings (theme, reminders).
+  Future<Profile> fetchProfile();
+
+  Future<void> updateProfile(ProfilePatch patch);
+
+  /// `get_bill_schedule()`: every bill with its next unpaid due date and
+  /// status, soonest first.
+  Future<List<Bill>> fetchBills();
+
+  /// Inserts with a client-generated [id], so a retry can't duplicate it.
+  Future<void> insertBill(String id, BillDraft draft);
+
+  Future<void> updateBill(String id, BillDraft draft);
+
+  Future<void> setBillReminder(String id, bool enabled);
+
+  Future<void> deleteBill(String id);
+
+  /// `mark_bill_paid()`: settles [month]'s bill. With [txnId], also logs the
+  /// payment as an expense with that id (amount, date and method optional).
+  /// Retrying is safe: nothing is paid or logged twice.
+  Future<MarkPaidResult> markBillPaid({
+    required String billId,
+    required YearMonth month,
+    String? txnId,
+    int? amountPaise,
+    DateTime? paidOn,
+    PaymentMethod? paymentMethod,
+  });
+
+  /// Undo for "Mark paid": moves the bill's paid-through month back.
+  Future<void> setBillPaidThrough(String id, YearMonth month);
+
   /// Live changes for the signed-in user, via Supabase Realtime.
   Stream<DataChange> watchChanges();
 }

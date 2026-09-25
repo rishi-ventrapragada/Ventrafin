@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/errors.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
+import '../../core/month_bar.dart';
 import '../../core/offline_banner.dart';
 import '../../core/category_style.dart';
 import '../../core/theme.dart';
@@ -31,7 +32,11 @@ class TransactionsScreen extends ConsumerWidget {
         title: const Text('Transactions'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(44),
-          child: _MonthBar(month: month, canGoForward: month.compareTo(thisMonth) < 0),
+          child: MonthBar(
+            month: month,
+            canGoForward: month.compareTo(thisMonth) < 0,
+            onChanged: ref.read(selectedMonthProvider.notifier).set,
+          ),
         ),
       ),
       body: Column(
@@ -57,98 +62,6 @@ class TransactionsScreen extends ConsumerWidget {
             },
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MonthBar extends ConsumerWidget {
-  const _MonthBar({required this.month, required this.canGoForward});
-
-  final YearMonth month;
-  final bool canGoForward;
-
-  Future<void> _pick(BuildContext context, WidgetRef ref) async {
-    final picked = await showDialog<YearMonth>(
-      context: context,
-      builder: (context) => _MonthPickerDialog(initial: month),
-    );
-    if (picked != null) ref.read(selectedMonthProvider.notifier).set(picked);
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-    final notifier = ref.read(selectedMonthProvider.notifier);
-    return Row(
-      children: [
-        IconButton(
-          tooltip: 'Previous month',
-          color: onPrimary,
-          icon: const Icon(Icons.chevron_left),
-          onPressed: () => notifier.set(month.previous),
-        ),
-        Expanded(
-          child: TextButton.icon(
-            key: const Key('month-picker'),
-            style: TextButton.styleFrom(foregroundColor: onPrimary),
-            onPressed: () => _pick(context, ref),
-            icon: const Icon(Icons.calendar_month, size: 18),
-            label: Text(month.label, style: const TextStyle(fontSize: 16)),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Next month',
-          color: onPrimary,
-          disabledColor: onPrimary.withValues(alpha: 0.3),
-          icon: const Icon(Icons.chevron_right),
-          onPressed: canGoForward ? () => notifier.set(month.next) : null,
-        ),
-      ],
-    );
-  }
-}
-
-class _MonthPickerDialog extends StatefulWidget {
-  const _MonthPickerDialog({required this.initial});
-
-  final YearMonth initial;
-
-  @override
-  State<_MonthPickerDialog> createState() => _MonthPickerDialogState();
-}
-
-class _MonthPickerDialogState extends State<_MonthPickerDialog> {
-  late int _year = widget.initial.year;
-
-  @override
-  Widget build(BuildContext context) {
-    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return AlertDialog(
-      title: Row(
-        children: [
-          IconButton(onPressed: () => setState(() => _year--), icon: const Icon(Icons.chevron_left)),
-          Expanded(child: Text('$_year', textAlign: TextAlign.center)),
-          IconButton(onPressed: () => setState(() => _year++), icon: const Icon(Icons.chevron_right)),
-        ],
-      ),
-      content: SizedBox(
-        width: 280,
-        child: GridView.count(
-          shrinkWrap: true,
-          crossAxisCount: 4,
-          childAspectRatio: 1.6,
-          children: [
-            for (var m = 1; m <= 12; m++)
-              TextButton(
-                style: widget.initial == YearMonth(_year, m)
-                    ? TextButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
-                    : null,
-                onPressed: () => Navigator.pop(context, YearMonth(_year, m)),
-                child: Text(names[m - 1]),
-              ),
-          ],
-        ),
       ),
     );
   }

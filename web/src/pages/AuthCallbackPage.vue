@@ -29,7 +29,7 @@ onMounted(async () => {
     <div v-if="problem" class="card max-w-md p-6 text-center">
       <h1 class="mb-2 text-lg font-semibold">Couldn't sign in</h1>
       <p class="mb-4 text-slate-600">{{ problem }}</p>
-      <RouterLink to="/login" class="font-medium text-ocean hover:underline">Back to sign in</RouterLink>
+      <RouterLink to="/login" class="font-medium text-primary hover:underline">Back to sign in</RouterLink>
     </div>
     <p v-else class="text-slate-600">Signing you in…</p>
   </div>

@@ -68,7 +68,7 @@ function isFuture(m: number) {
             :key="name"
             type="button"
             class="rounded py-1.5 text-dense disabled:opacity-30"
-            :class="month.year === pickerYear && month.month === i + 1 ? 'bg-ocean text-white' : 'hover:bg-slate-100'"
+            :class="month.year === pickerYear && month.month === i + 1 ? 'bg-primary text-primary-contrast' : 'hover:bg-slate-100'"
             :disabled="isFuture(i + 1)"
             @click="pick(i + 1)"
           >

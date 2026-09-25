@@ -272,3 +272,348 @@ class CategoryComparison {
 
   int get changePaise => thisMonthPaise - lastMonthPaise;
 }
+
+// ---------------------------------------------------------------------------
+// Reports over a range of months
+// ---------------------------------------------------------------------------
+
+/// One row of `get_monthly_totals()`: a month's totals (zero when empty).
+@immutable
+class MonthlyTotal {
+  const MonthlyTotal({
+    required this.month,
+    required this.expensePaise,
+    required this.incomePaise,
+    required this.expenseCount,
+    required this.incomeCount,
+    required this.uncategorizedCount,
+  });
+
+  factory MonthlyTotal.fromRow(Map<String, dynamic> r) => MonthlyTotal(
+    month: YearMonth.of(parseIsoDate(r['month'] as String)),
+    expensePaise: (r['expense_paise'] as num).toInt(),
+    incomePaise: (r['income_paise'] as num).toInt(),
+    expenseCount: (r['expense_count'] as num).toInt(),
+    incomeCount: (r['income_count'] as num).toInt(),
+    uncategorizedCount: (r['uncategorized_count'] as num).toInt(),
+  );
+
+  final YearMonth month;
+  final int expensePaise;
+  final int incomePaise;
+  final int expenseCount;
+  final int incomeCount;
+  final int uncategorizedCount;
+
+  int get netPaise => incomePaise - expensePaise;
+
+  /// Share of income not spent, in whole percent; null without income.
+  int? get savedPercent => incomePaise > 0 ? (netPaise * 100 / incomePaise).round() : null;
+}
+
+/// One row of `get_monthly_category_totals()`. `categoryId == null` is
+/// Uncategorized. Months with nothing in a category have no row.
+@immutable
+class MonthlyCategoryTotal {
+  const MonthlyCategoryTotal({
+    required this.month,
+    required this.kind,
+    required this.categoryId,
+    required this.categoryName,
+    required this.color,
+    required this.count,
+    required this.totalPaise,
+  });
+
+  factory MonthlyCategoryTotal.fromRow(Map<String, dynamic> r) => MonthlyCategoryTotal(
+    month: YearMonth.of(parseIsoDate(r['month'] as String)),
+    kind: TxnType.fromDb(r['kind'] as String),
+    categoryId: r['category_id'] as String?,
+    categoryName: r['category_name'] as String,
+    color: parseHexColor(r['category_color'] as String?),
+    count: (r['transaction_count'] as num).toInt(),
+    totalPaise: (r['total_paise'] as num).toInt(),
+  );
+
+  final YearMonth month;
+  final TxnType kind;
+  final String? categoryId;
+  final String categoryName;
+  final Color color;
+  final int count;
+  final int totalPaise;
+}
+
+// ---------------------------------------------------------------------------
+// Profile (per-user settings)
+// ---------------------------------------------------------------------------
+
+/// `public.profiles`: theme and reminder settings, shared with the web app.
+@immutable
+class Profile {
+  const Profile({
+    required this.theme,
+    required this.dailyReminderEnabled,
+    required this.dailyReminderTime,
+    required this.billRemindersEnabled,
+    required this.billReminderDaysBefore,
+  });
+
+  factory Profile.fromRow(Map<String, dynamic> r) => Profile(
+    theme: r['theme'] as String? ?? 'ocean',
+    dailyReminderEnabled: r['daily_reminder_enabled'] as bool? ?? true,
+    dailyReminderTime: parseDbTime(r['daily_reminder_time'] as String?) ?? kDefaultDailyReminderTime,
+    billRemindersEnabled: r['bill_reminders_enabled'] as bool? ?? true,
+    billReminderDaysBefore: (r['bill_reminder_days_before'] as num?)?.toInt() ?? kDefaultBillReminderDaysBefore,
+  );
+
+  /// A `profiles.theme` id (see core/theme_tokens.dart).
+  final String theme;
+
+  /// "Log today's expenses", every day at [dailyReminderTime] (India time).
+  final bool dailyReminderEnabled;
+  final TimeOfDay dailyReminderTime;
+
+  /// Master switch for every bill reminder (the per-bill switches still apply).
+  final bool billRemindersEnabled;
+
+  /// Bill reminders fire this many days before the due date, and on the day.
+  final int billReminderDaysBefore;
+}
+
+/// Defaults, as in the database.
+const TimeOfDay kDefaultDailyReminderTime = TimeOfDay(hour: 20, minute: 30);
+const int kDefaultBillReminderDaysBefore = 3;
+const int kMaxBillReminderDaysBefore = 10;
+
+/// Columns of `profiles` to change; null = leave as is.
+@immutable
+class ProfilePatch {
+  const ProfilePatch({
+    this.theme,
+    this.dailyReminderEnabled,
+    this.dailyReminderTime,
+    this.billRemindersEnabled,
+    this.billReminderDaysBefore,
+  });
+
+  final String? theme;
+  final bool? dailyReminderEnabled;
+  final TimeOfDay? dailyReminderTime;
+  final bool? billRemindersEnabled;
+  final int? billReminderDaysBefore;
+
+  Map<String, dynamic> toRow() => {
+    if (theme != null) 'theme': theme,
+    if (dailyReminderEnabled != null) 'daily_reminder_enabled': dailyReminderEnabled,
+    if (dailyReminderTime != null) 'daily_reminder_time': toDbTime(dailyReminderTime!),
+    if (billRemindersEnabled != null) 'bill_reminders_enabled': billRemindersEnabled,
+    if (billReminderDaysBefore != null) 'bill_reminder_days_before': billReminderDaysBefore,
+  };
+
+  Profile applyTo(Profile p) => Profile(
+    theme: theme ?? p.theme,
+    dailyReminderEnabled: dailyReminderEnabled ?? p.dailyReminderEnabled,
+    dailyReminderTime: dailyReminderTime ?? p.dailyReminderTime,
+    billRemindersEnabled: billRemindersEnabled ?? p.billRemindersEnabled,
+    billReminderDaysBefore: billReminderDaysBefore ?? p.billReminderDaysBefore,
+  );
+}
+
+/// Postgres `time` (`20:30:00`) to a [TimeOfDay].
+TimeOfDay? parseDbTime(String? s) {
+  final m = s == null ? null : RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(s);
+  if (m == null) return null;
+  final h = int.parse(m.group(1)!), min = int.parse(m.group(2)!);
+  return h < 24 && min < 60 ? TimeOfDay(hour: h, minute: min) : null;
+}
+
+String toDbTime(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// `8:30 pm`
+String formatTimeOfDay(TimeOfDay t) {
+  final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+  return '$h:${t.minute.toString().padLeft(2, '0')} ${t.period == DayPeriod.am ? 'am' : 'pm'}';
+}
+
+// ---------------------------------------------------------------------------
+// Recurring bills
+// ---------------------------------------------------------------------------
+
+/// `recurring_bills.kind`
+enum BillKind {
+  utility('utility', 'Utility bill'),
+  emi('emi', 'Loan EMI');
+
+  const BillKind(this.db, this.label);
+  final String db;
+  final String label;
+
+  static BillKind fromDb(String v) => values.firstWhere((k) => k.db == v, orElse: () => utility);
+}
+
+/// `get_bill_schedule().status`
+enum BillStatus {
+  overdue('overdue'),
+  dueToday('due_today'),
+  dueSoon('due_soon'),
+  upcoming('upcoming');
+
+  const BillStatus(this.db);
+  final String db;
+
+  static BillStatus fromDb(String v) => values.firstWhere((s) => s.db == v, orElse: () => upcoming);
+}
+
+/// A recurring bill with its next unpaid due date, from `get_bill_schedule()`.
+/// Due dates and status are computed in Postgres, the same for both apps.
+@immutable
+class Bill {
+  const Bill({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.amountPaise,
+    required this.dueDay,
+    required this.accountId,
+    required this.categoryId,
+    required this.reminderEnabled,
+    required this.paidThroughMonth,
+    required this.nextDueDate,
+    required this.daysUntil,
+    required this.status,
+    required this.overdueCount,
+  });
+
+  factory Bill.fromScheduleRow(Map<String, dynamic> r) => Bill(
+    id: r['id'] as String,
+    name: r['name'] as String,
+    kind: BillKind.fromDb(r['kind'] as String),
+    amountPaise: (r['amount_paise'] as num).toInt(),
+    dueDay: (r['due_day'] as num).toInt(),
+    accountId: r['account_id'] as String,
+    categoryId: r['category_id'] as String?,
+    reminderEnabled: r['reminder_enabled'] as bool? ?? true,
+    paidThroughMonth: YearMonth.of(parseIsoDate(r['paid_through_month'] as String)),
+    nextDueDate: parseIsoDate(r['next_due_date'] as String),
+    daysUntil: (r['days_until'] as num).toInt(),
+    status: BillStatus.fromDb(r['status'] as String),
+    overdueCount: (r['overdue_count'] as num).toInt(),
+  );
+
+  final String id;
+  final String name;
+  final BillKind kind;
+  final int amountPaise;
+
+  /// 1–31; months without that day use their last day.
+  final int dueDay;
+  final String accountId;
+  final String? categoryId;
+  final bool reminderEnabled;
+
+  /// The latest month whose bill is settled.
+  final YearMonth paidThroughMonth;
+
+  /// Due date of the first unpaid month.
+  final DateTime nextDueDate;
+
+  /// Days from today to [nextDueDate]; negative when overdue.
+  final int daysUntil;
+  final BillStatus status;
+
+  /// Unpaid months whose due date has passed.
+  final int overdueCount;
+
+  /// The month whose bill is due next (what "Mark paid" settles).
+  YearMonth get nextDueMonth => YearMonth.of(nextDueDate);
+
+  BillDraft toDraft() => BillDraft(
+    name: name,
+    kind: kind,
+    amountPaise: amountPaise,
+    dueDay: dueDay,
+    accountId: accountId,
+    categoryId: categoryId,
+    reminderEnabled: reminderEnabled,
+  );
+}
+
+/// What the bill form writes.
+@immutable
+class BillDraft {
+  const BillDraft({
+    required this.name,
+    required this.kind,
+    required this.amountPaise,
+    required this.dueDay,
+    required this.accountId,
+    this.categoryId,
+    this.reminderEnabled = true,
+  });
+
+  final String name;
+  final BillKind kind;
+  final int amountPaise;
+  final int dueDay;
+  final String accountId;
+  final String? categoryId;
+  final bool reminderEnabled;
+
+  /// owner_id defaults to auth.uid(); paid_through_month is filled in by the
+  /// database on insert (the first bill still owed).
+  Map<String, dynamic> toRow() => {
+    'name': name.trim(),
+    'kind': kind.db,
+    'amount_paise': amountPaise,
+    'due_day': dueDay,
+    'account_id': accountId,
+    'category_id': categoryId,
+    'reminder_enabled': reminderEnabled,
+  };
+}
+
+/// Longest bill name the database accepts (`recurring_bills_name_check`).
+const int kBillNameMaxLength = 60;
+
+/// Due date of a bill in [month]: [dueDay] clamped to the month's last day.
+/// Same rule as `private.bill_due_date` in the database; the phone needs it
+/// to schedule reminders for the months after the next one.
+DateTime billDueDate(YearMonth month, int dueDay) {
+  final last = DateTime(month.year, month.month + 1, 0).day;
+  return DateTime(month.year, month.month, dueDay < last ? dueDay : last);
+}
+
+/// `10th of every month`; 31 reads as the last day.
+String dueDayLabel(int day) {
+  if (day >= 31) return 'last day of every month';
+  final suffix = (day >= 11 && day <= 13)
+      ? 'th'
+      : switch (day % 10) {
+          1 => 'st',
+          2 => 'nd',
+          3 => 'rd',
+          _ => 'th',
+        };
+  return '$day$suffix of every month';
+}
+
+/// What `mark_bill_paid()` did.
+@immutable
+class MarkPaidResult {
+  const MarkPaidResult({required this.paidThroughMonth, required this.transactionId, required this.alreadyPaid});
+
+  factory MarkPaidResult.fromRow(Map<String, dynamic> r) => MarkPaidResult(
+    paidThroughMonth: YearMonth.of(parseIsoDate(r['paid_through_month'] as String)),
+    transactionId: r['transaction_id'] as String?,
+    alreadyPaid: r['already_paid'] as bool? ?? false,
+  );
+
+  final YearMonth paidThroughMonth;
+
+  /// The logged expense, if one was asked for and exists.
+  final String? transactionId;
+
+  /// The month was already paid (on the other app, or by an earlier retry).
+  final bool alreadyPaid;
+}

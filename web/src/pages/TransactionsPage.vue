@@ -318,7 +318,7 @@ function rowClass(t: Row) {
           type="search"
           placeholder="Search descriptions"
           aria-label="Search descriptions"
-          class="h-[2.35rem] w-52 rounded-md border border-slate-300 bg-white pr-2 pl-8 outline-none placeholder:text-slate-500 focus:border-ocean"
+          class="h-[2.35rem] w-52 rounded-md border border-slate-300 bg-white pr-2 pl-8 outline-none placeholder:text-slate-500 focus:border-primary"
           data-testid="search"
         />
       </span>
@@ -437,11 +437,11 @@ function rowClass(t: Row) {
           <div class="py-8 text-center text-slate-600">
             <template v-if="filtered || search">
               No transactions match the filters.
-              <button type="button" class="text-ocean hover:underline" @click="clearFilters">Clear filters</button>
+              <button type="button" class="text-primary hover:underline" @click="clearFilters">Clear filters</button>
             </template>
             <template v-else>
               No transactions in {{ monthLabel(month) }}.
-              <RouterLink to="/add" class="text-ocean hover:underline">Add some</RouterLink>
+              <RouterLink to="/add" class="text-primary hover:underline">Add some</RouterLink>
             </template>
           </div>
         </template>

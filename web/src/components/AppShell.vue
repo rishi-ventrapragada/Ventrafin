@@ -49,9 +49,9 @@ async function signOut() {
 
 <template>
   <div class="flex h-screen min-h-0 overflow-hidden">
-    <nav class="flex w-52 shrink-0 flex-col bg-ocean text-white" aria-label="Sections">
+    <nav class="flex w-52 shrink-0 flex-col bg-brand text-on-brand" aria-label="Sections">
       <div class="flex items-center gap-2 px-4 pt-4 pb-5">
-        <AppLogo :size="32" class="rounded-md ring-1 ring-white/30" />
+        <AppLogo :size="32" class="rounded-md ring-1 ring-on-brand/30" />
         <span class="text-xl font-semibold tracking-wide">Ventrafin</span>
       </div>
       <ul class="flex flex-col gap-0.5 px-2">
@@ -64,7 +64,7 @@ async function signOut() {
             <a
               :href="href"
               class="flex items-center gap-3 rounded-md px-3 py-2 text-[1.03rem] transition-colors"
-              :class="isActive ? 'bg-white/18 font-semibold shadow-[inset_3px_0_0_#4db6ac]' : 'text-white/90 hover:bg-white/10'"
+              :class="isActive ? 'bg-on-brand/15 font-semibold shadow-[inset_3px_0_0_var(--vf-brand-indicator)]' : 'text-on-brand/90 hover:bg-on-brand/10'"
               :aria-current="isActive ? 'page' : undefined"
               @click="navigate"
             >
@@ -74,9 +74,9 @@ async function signOut() {
           </RouterLink>
         </li>
       </ul>
-      <div class="mt-auto border-t border-white/15 px-4 py-3 text-sm">
-        <div class="truncate text-white/90" :title="app.auth.user.value?.email">{{ app.auth.user.value?.email }}</div>
-        <button type="button" class="mt-1 inline-flex items-center gap-1.5 text-white/90 hover:text-white hover:underline" @click="signOut">
+      <div class="mt-auto border-t border-on-brand/15 px-4 py-3 text-sm">
+        <div class="truncate text-on-brand/90" :title="app.auth.user.value?.email">{{ app.auth.user.value?.email }}</div>
+        <button type="button" class="mt-1 inline-flex items-center gap-1.5 text-on-brand/90 hover:text-on-brand hover:underline" @click="signOut">
           <AppIcon name="logout" :size="19" /> Sign out
         </button>
       </div>

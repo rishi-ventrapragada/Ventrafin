@@ -195,3 +195,103 @@ class HiddenTxnIds extends Notifier<Set<String>> {
 }
 
 final hiddenTxnIdsProvider = NotifierProvider<HiddenTxnIds, Set<String>>(HiddenTxnIds.new);
+
+// ---------------------------------------------------------------------------
+// Reports over a range of months
+// ---------------------------------------------------------------------------
+
+/// Months [from]..[to] inclusive, as a provider key.
+typedef MonthRange = ({YearMonth from, YearMonth to});
+
+final monthlyTotalsProvider = FutureProvider.autoDispose.family<List<MonthlyTotal>, MonthRange>((ref, range) {
+  _revision(ref, 'transactions');
+  ref.watch(currentUserIdProvider);
+  return ref.watch(repositoryProvider).fetchMonthlyTotals(range.from, range.to);
+});
+
+final monthlyCategoryTotalsProvider = FutureProvider.autoDispose.family<List<MonthlyCategoryTotal>, MonthRange>((
+  ref,
+  range,
+) {
+  _revision(ref, 'transactions');
+  _revision(ref, 'categories');
+  ref.watch(currentUserIdProvider);
+  return ref.watch(repositoryProvider).fetchMonthlyCategoryTotals(range.from, range.to);
+});
+
+// ---------------------------------------------------------------------------
+// Profile: theme and reminder settings (synced with the web app)
+// ---------------------------------------------------------------------------
+
+/// The stored profile; null while signed out.
+final profileProvider = FutureProvider<Profile?>((ref) async {
+  _revision(ref, 'profiles');
+  if (ref.watch(currentUserIdProvider) == null) return null;
+  return ref.watch(repositoryProvider).fetchProfile();
+});
+
+/// Settings changed on this phone that are still saving. They show straight
+/// away (a switch flips when tapped) and are dropped once the saved profile
+/// has been re-read, or rolled back if the save fails.
+class PendingProfile extends Notifier<ProfilePatch?> {
+  int _seq = 0;
+
+  @override
+  ProfilePatch? build() => null;
+
+  /// Saves [patch]; throws (after rolling back) if the save fails.
+  Future<void> save(ProfilePatch patch) async {
+    final mine = ++_seq;
+    final before = state;
+    state = _merge(state, patch);
+    try {
+      await ref.read(repositoryProvider).updateProfile(patch);
+      ref.read(revisionsProvider.notifier).bump(['profiles']);
+      await ref.read(profileProvider.future);
+      if (mine == _seq) state = null;
+    } catch (_) {
+      if (mine == _seq) state = before;
+      rethrow;
+    }
+  }
+
+  static ProfilePatch _merge(ProfilePatch? a, ProfilePatch b) => ProfilePatch(
+    theme: b.theme ?? a?.theme,
+    dailyReminderEnabled: b.dailyReminderEnabled ?? a?.dailyReminderEnabled,
+    dailyReminderTime: b.dailyReminderTime ?? a?.dailyReminderTime,
+    billRemindersEnabled: b.billRemindersEnabled ?? a?.billRemindersEnabled,
+    billReminderDaysBefore: b.billReminderDaysBefore ?? a?.billReminderDaysBefore,
+  );
+}
+
+final pendingProfileProvider = NotifierProvider<PendingProfile, ProfilePatch?>(PendingProfile.new);
+
+/// The profile as the phone should show it: stored values plus unsaved changes.
+final effectiveProfileProvider = Provider<Profile?>((ref) {
+  final stored = ref.watch(profileProvider).value;
+  final pending = ref.watch(pendingProfileProvider);
+  if (stored == null) return null;
+  return pending == null ? stored : pending.applyTo(stored);
+});
+
+/// SharedPreferences key: the last theme seen, so the app opens in it
+/// before the profile has loaded (a UI preference, not data).
+const String kThemePrefKey = 'ui.theme';
+
+/// The theme id to draw with.
+final themeIdProvider = Provider<String>((ref) {
+  final fromProfile = ref.watch(effectiveProfileProvider)?.theme;
+  return fromProfile ?? ref.watch(sharedPreferencesProvider).getString(kThemePrefKey) ?? 'ocean';
+});
+
+// ---------------------------------------------------------------------------
+// Bills
+// ---------------------------------------------------------------------------
+
+/// Every bill with its next due date and status (from Postgres), soonest
+/// first. Kept alive: the reminder scheduler watches it too.
+final billsProvider = FutureProvider<List<Bill>>((ref) async {
+  _revision(ref, 'recurring_bills');
+  if (ref.watch(currentUserIdProvider) == null) return const [];
+  return ref.watch(repositoryProvider).fetchBills();
+});

@@ -103,7 +103,7 @@ async function save() {
             id="category-name"
             v-model="name"
             :maxlength="CATEGORY_NAME_MAX"
-            class="w-full rounded-md border px-2.5 py-1.5 outline-none focus:border-ocean"
+            class="w-full rounded-md border px-2.5 py-1.5 outline-none focus:border-primary"
             :class="nameError ? 'border-expense' : 'border-slate-300'"
             data-testid="category-name"
             autocomplete="off"

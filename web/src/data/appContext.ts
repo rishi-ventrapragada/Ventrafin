@@ -5,6 +5,7 @@
 // updates when something changes on the phone, with no refresh button.
 // (Same design as the phone's Riverpod "revisions", DECISIONS.md D11.)
 import {
+  computed,
   effectScope,
   inject,
   reactive,
@@ -18,7 +19,8 @@ import {
 } from 'vue'
 import { indiaToday, systemClock, type Clock } from '@/lib/dates'
 import { OfflineError } from '@/lib/errors'
-import type { Account, Category } from '@/lib/models'
+import type { Account, Category, Profile } from '@/lib/models'
+import { applyTheme, rememberedThemeId, themeById, type ThemeId } from '@/lib/theme'
 import type { AuthService } from './auth'
 import type { EntryPrefs } from './entryPrefs'
 import { REALTIME_TABLES, type FinanceRepository, type LiveStatus, type RealtimeTable } from './repository'
@@ -55,6 +57,12 @@ export interface AppContext {
   requireOnline(): void
   readonly accounts: LiveQuery<Account[]>
   readonly categories: LiveQuery<Category[]>
+  /** Theme and reminder settings, shared with the phone. */
+  readonly profile: LiveQuery<Profile>
+  /** The theme on screen: a change still saving, else the profile's, else this browser's last one. */
+  readonly themeId: Readonly<Ref<ThemeId>>
+  /** Applies `id` straight away and saves it to the profile; rolls back and throws if the save fails. */
+  setTheme(id: ThemeId): Promise<void>
   liveQuery<T>(tables: readonly RealtimeTable[], fetcher: () => Promise<T>, deps?: () => unknown): LiveQuery<T>
   dispose(): void
 }
@@ -133,7 +141,31 @@ export function createAppContext(opts: AppContextOptions): AppContext {
   const shared = scope.run(() => ({
     accounts: liveQuery(['accounts'], () => repo.fetchAccounts()),
     categories: liveQuery(['categories'], () => repo.fetchCategories()),
+    profile: liveQuery(['profiles'], () => repo.fetchProfile(auth.user.value!.id)),
   }))!
+
+  // Theme (DECISIONS.md D22): shown at once when picked here, and followed
+  // when it changes on the phone (the profile re-fetches via Realtime).
+  const pendingTheme = ref<ThemeId | null>(null)
+  const themeId = computed<ThemeId>(
+    () => pendingTheme.value ?? themeById(shared.profile.data.value?.theme ?? rememberedThemeId()).id,
+  )
+  scope.run(() => watch(themeId, (id) => applyTheme(themeById(id))))
+  let themeSeq = 0
+  async function setTheme(id: ThemeId) {
+    const user = auth.user.value
+    if (!user) return
+    if (!online.value) throw new OfflineError()
+    const mine = ++themeSeq
+    pendingTheme.value = id
+    try {
+      await repo.updateProfileTheme(user.id, id)
+      bump(['profiles'])
+      await shared.profile.refresh()
+    } finally {
+      if (mine === themeSeq) pendingTheme.value = null
+    }
+  }
 
   if (opts.realtime !== false) {
     scope.run(() => {
@@ -220,6 +252,9 @@ export function createAppContext(opts: AppContextOptions): AppContext {
     },
     accounts: shared.accounts,
     categories: shared.categories,
+    profile: shared.profile,
+    themeId,
+    setTheme,
     // Called from a page's setup(), so its watcher stops when the page unmounts.
     liveQuery,
     dispose() {

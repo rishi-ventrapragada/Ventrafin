@@ -128,3 +128,34 @@ class AmountInput {
   @override
   int get hashCode => text.hashCode;
 }
+
+/// Short axis labels for charts: `₹950`, `₹9.5k`, `₹12k`, `₹1.2L`, `₹3.4Cr`.
+String formatRupeesAxis(int paise) {
+  final rupees = paise ~/ 100;
+  final sign = rupees < 0 ? '-' : '';
+  final r = rupees.abs();
+  String one(double v) {
+    final s = v.toStringAsFixed(v < 10 ? 1 : 0);
+    return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+  }
+
+  if (r < 1000) return '$sign₹$r';
+  if (r < 100000) return '$sign₹${one(r / 1000)}k';
+  if (r < 10000000) return '$sign₹${one(r / 100000)}L';
+  return '$sign₹${one(r / 10000000)}Cr';
+}
+
+/// A round step for about [lines] gridlines up to [maxPaise]: 1, 2 or 5
+/// times a power of ten (whole rupees).
+int niceAxisStep(int maxPaise, {int lines = 4}) {
+  final raw = maxPaise / lines;
+  if (raw <= 100) return 100;
+  var magnitude = 100;
+  while (magnitude * 10 <= raw) {
+    magnitude *= 10;
+  }
+  for (final m in [1, 2, 5, 10]) {
+    if (magnitude * m >= raw) return magnitude * m;
+  }
+  return magnitude * 10;
+}

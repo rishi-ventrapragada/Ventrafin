@@ -163,7 +163,7 @@ We don't own `ventrafin.com`. That doesn't matter for sideloading or the Play St
   - The colour is the first palette colour none of the user's active categories uses yet.
   - Seeding and auto-categorization pick all this up without changes.
 - **Built-in colours were re-picked to be distinct.** Every pair of built-in expense colours is at least CIEDE2000 15 apart. The migration moved existing users' colours only where they were still the old default.
-- **Readable glyphs** on pale colours: the apps draw a white glyph when it reaches 3:1 contrast, otherwise a dark one.
+- **Readable glyphs** on pale colours: the apps draw a white glyph when it reaches 3:1 contrast, otherwise a dark one. *(Superseded by D20: whichever of white/dark contrasts more.)*
 - **Uncategorized has no row**, so it has a fixed look in the clients instead: an amber `?` in an *outlined* circle. Every real category is a *filled* circle.
 
 **The mirror:** `/shared/category-style.json` mirrors the icon list (with labels and groups) and the palette for the clients. `mobile/test/category_style_test.dart` fails if the Dart list, the JSON and the latest migration drift apart.
@@ -266,6 +266,78 @@ The exact rule, the filler words and test vectors are in `/shared/category-style
 - **TypeScript 5.9**, not 7: `vue-tsc` needs the TypeScript language-service API, which the native TypeScript 7 compiler doesn't expose yet.
 - **No Pinia**: a small app context (provide/inject) with per-table revision counters mirrors the phone's design and is easy to fake in tests.
 - **Vitest + @vue/test-utils + jsdom** for unit and component tests. jsdom 29 is used because 30 needs a newer Node 24 minor than the dev PC has.
+
+---
+
+## D20. Category glyph colour: whichever contrasts more (supersedes the 3:1 rule in D13), plus outlines for pale circles
+
+**Decision:** both apps draw a category's glyph in white or near-black (87 % black over the circle), **whichever has more contrast** with the circle, with white keeping near-ties (within 10 %). The web app changed to this in its readability pass; the phone now does the same, so every built-in category's icon is the same colour on both apps.
+- D13's rule was "white whenever it reaches 3:1". That left mid-tones such as green `#43A047` (Groceries) at 3.3:1. Now every palette colour gets 4.2:1 or better.
+- On the phone this turns six palette colours' glyphs from white to dark: `#43A047` Groceries, `#0097A7` Travel, `#1E88E5` Transport, `#EC407A` Shopping, `#78909C` Other Income, and `#A1887F`.
+- `/shared/category-style.json` (`glyph.onPalette`) lists the result for all 24 palette colours, which cover every built-in category. Both apps' tests check against it.
+
+Two related rules, also on both apps:
+- **Outlined looks** (Uncategorized `?`, Transfer arrow, Auto sparkle) draw their glyph and ring in a darker shade of their colour that reaches 4.5:1 on their own tint over every surface of the current theme.
+- **Pale circles get an outline.** A filled circle whose colour is below 1.5:1 against any surface it can sit on in the current theme (white cards, the page, highlighted rows) gets a 1px ring in a darker shade (3:1 against those surfaces). In practice: yellow `#FDD835` (Electricity) everywhere, and light green `#AED581` on highlighted rows.
+
+**Rejected:** recolouring categories per theme. A category is recognised by its colour, and the user picked it; changing it with the theme would break that. The outline fixes the only real clash without touching the colour.
+
+---
+
+## D21. Reports: existing functions plus one zero-filled monthly total
+
+**Decision:** the Reports screens reuse `get_month_totals`, `get_month_comparison` and `get_monthly_category_totals`, and add one function, `get_monthly_totals(from, to)`, for the income-against-spending trend.
+
+**Why a new function:** a trend needs every month in the range, including months with nothing in them, and per-month income, spending, net and entry counts. Summing category rows and filling gaps in each client would be the kind of duplicated computation `CLAUDE.md` keeps in Postgres. It is capped at 120 months per call.
+
+**Shape of the screens** (both apps): a month picker drives everything; the trends cover 6 or 12 months **ending with the chosen month**, so looking at an old month shows the months before it. The category trend chart shows the five largest categories over the range plus "Other" (grey `#B0BEC5`, not a palette colour); the table under it lists every category. Charts always sit next to a table with the same numbers (D7). The web draws its charts as SVG itself (no chart library: nothing extra to load, same CSP, testable in jsdom).
+
+---
+
+## D22. Themes: brand colour vs. primary colour, from one shared file
+
+**Decision:** `/shared/theme-tokens.json` holds the six themes. Each theme separates:
+- **brand**: the big coloured surfaces (phone app bar, web sidebar), with its own text colour. For Sunflower and Marigold this is yellow with dark text.
+- **primary**: buttons, links, switches, selected states. Always dark enough to be text on white and to carry white text (4.5:1), so for the yellow themes it is a dark gold/brown, not yellow.
+
+**Why:** PRD § 4.8 pairs two themes with yellow. Yellow can't carry white text or be link text on white. Keeping "brand" and "primary" apart lets the yellow themes look yellow without any unreadable button or link.
+
+**Other choices:**
+- The web imports the JSON; the phone has a generated Dart file with a staleness test (Flutter can't bundle assets from outside its package, and a generated constant keeps icons/colours tree-shaken and typed).
+- Semantic colours (expense red, income green, Uncategorized amber) don't change with the theme, so Forest's green brand never gets confused with "income" in the numbers themselves.
+- Cards and sheets stay white on every theme; only the page behind them is tinted. That keeps category colours on the same surfaces everywhere (D20) and matches the web.
+- Two Ocean values moved slightly so everything passes 4.5:1 (checked by tests on all six themes): the teal accent `#00897B` → `#00796B`, and the highlight tint `#E3F2FD` → `#E8F3FD` (green income amounts on a highlighted row were 4.49:1). Sunset's highlight is `#F0F1FA` for the same reason.
+- The theme applies immediately when picked and rolls back if saving fails. Each browser/phone remembers the last theme locally only so it opens in it before the profile loads.
+
+---
+
+## D23. Bills: a paid-through month, not payment matching
+
+**Decision:** "overdue" needs to know whether a bill was paid. Each bill stores `paid_through_month`; the next bill due is in the month after it. **Mark paid** moves it forward one month (or to any later month), optionally logging the payment as an expense in the same database call (`mark_bill_paid`).
+- When a bill is added, the database decides the first month owed: this month if its due date hasn't passed yet, otherwise next month. (Adding a bill on 25 Sep with due day 10 doesn't make it instantly overdue.)
+- Due dates clamp to short months (due day 31 is 30 April, 28/29 February), computed in SQL (`private.bill_due_date`); the phone repeats the same rule only to schedule reminders for later months, and tests pin both to the same examples.
+- Status: overdue / due today / due within 7 days / upcoming, computed in `get_bill_schedule`.
+- `mark_bill_paid` is idempotent per month: marking an already-paid month changes nothing and logs no second expense, so a retry after a lost response, or marking the same bill paid on both apps, can't double-count. The logged expense uses a client-generated id.
+- Undo moves the month back. The phone's Undo, right after marking, also deletes the expense it just logged. "Mark unpaid" later (either app) leaves Transactions alone and says so.
+- The web Bills page can add, edit, delete and mark bills paid as well, not only list them: Dad may be at the PC when he pays.
+
+**Rejected:**
+- Matching transactions to bills by category or amount: utility amounts change every month and a guess that's wrong shows a paid bill as overdue.
+- A separate payments table: more than this needs; the expense itself is already in Transactions.
+
+---
+
+## D24. Reminders: local notifications, exact when allowed, inexact otherwise
+
+**Decision:** reminders are scheduled on the phone with `flutter_local_notifications`, in **Asia/Kolkata** whatever the phone is set to (the app's single time zone). The web shows due and overdue bills but sends nothing.
+- **Defaults:** daily "log today's expenses" at **8:30 pm**, changeable. Bill reminders at **9:00 am**, **3 days before** the due date (configurable 0–10; 0 = only on the day) **and on the due date**. Both settings live in `profiles`, so they survive a reinstall and show on the web.
+- **Switches:** the daily reminder has its own switch; the bill master switch turns off every bill reminder but not the daily one; each bill has its own switch too.
+- **Scheduling:** a pure planner builds the full list; the phone cancels everything and schedules the list again whenever the profile, the bills or the permissions change, and on returning to the app. Bill reminders are scheduled three months ahead, so they keep coming if the app isn't opened for a while. A month that is already overdue gets no more reminders; the Bills screen shows it in red.
+- **Permissions:**
+  - Notifications (Android 13+): asked once, in context, after a short explanation, the first time the signed-in app opens with a reminder on. If refused, Settings shows a banner with **Allow**, which asks again or, once Android stops asking, opens the app's notification settings.
+  - Exact alarms: `SCHEDULE_EXACT_ALARM`, which Android 14+ doesn't grant by default. Without it reminders are scheduled as **inexact** alarms (they still come, possibly some minutes late) and Settings offers to allow exact timing. If the permission is withdrawn while alarms are pending, scheduling falls back to inexact instead of failing. `USE_EXACT_ALARM` was not used: Play reserves it for alarm-clock and calendar apps.
+- **Privacy:** notifications name the bill and date but never the amount, and are marked private (hidden on a secure lock screen that hides sensitive content). Signing out cancels them all.
+- **Known limit:** a change made on the web (a new bill, a bill marked paid) reaches the phone's schedule the next time the phone app is opened. Until then an old reminder can still fire. A server-side push would fix this, but the product has no server by design (ARCHITECTURE.md § 9).
 
 ---
 

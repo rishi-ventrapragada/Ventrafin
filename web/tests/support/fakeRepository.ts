@@ -1,9 +1,23 @@
 // In-memory stand-in for Supabase, shared by the component tests and the
 // demo page (same accounts and categories as mobile/test/support).
 import type { CategoryEdit, DataChange, FinanceRepository, LiveStatus, NewTxn } from '@/data/repository'
-import { monthOf, previousMonth, type YearMonth } from '@/lib/dates'
+import { compareMonths, monthKey, monthOf, nextMonth, previousMonth, type YearMonth } from '@/lib/dates'
 import { AppError } from '@/lib/errors'
-import type { Account, Category, CategoryComparison, MonthTotals, Txn, TxnPatch } from '@/lib/models'
+import type {
+  Account,
+  Bill,
+  BillDraft,
+  Category,
+  CategoryComparison,
+  MarkPaidResult,
+  MonthlyCategoryTotal,
+  MonthlyTotal,
+  MonthTotals,
+  PaymentMethod,
+  Profile,
+  Txn,
+  TxnPatch,
+} from '@/lib/models'
 
 /** 19:00 UTC on 24 Sep = 00:30 IST on 25 Sep: "today" must be the 25th. */
 export const FIXED_NOW = new Date('2026-09-24T19:00:00Z')
@@ -221,6 +235,149 @@ export class FakeRepository implements FinanceRepository {
     Object.assign(c, { name: edit.name.trim(), icon: edit.icon, color: edit.color })
     this.emit({ table: 'categories' })
     return { ...c }
+  }
+
+  monthlyTotals: MonthlyTotal[] = []
+  monthlyCategoryTotals: MonthlyCategoryTotal[] = []
+  monthlyRanges: { from: YearMonth; to: YearMonth }[] = []
+
+  async fetchMonthlyTotals(from: YearMonth, to: YearMonth) {
+    this.monthlyRanges.push({ from, to })
+    await this.wait()
+    if (!this.liveReports) return this.monthlyTotals.map((m) => ({ ...m }))
+    const out: MonthlyTotal[] = []
+    for (let m = from; compareMonths(m, to) <= 0; m = nextMonth(m)) {
+      const rows = this.inMonth(m).filter((t) => t.type !== 'transfer')
+      const sum = (type: string) => rows.filter((t) => t.type === type).reduce((s, t) => s + t.amountPaise, 0)
+      out.push({
+        month: m,
+        expensePaise: sum('expense'),
+        incomePaise: sum('income'),
+        expenseCount: rows.filter((t) => t.type === 'expense').length,
+        incomeCount: rows.filter((t) => t.type === 'income').length,
+        uncategorizedCount: rows.filter((t) => !t.categoryId).length,
+      })
+    }
+    return out
+  }
+
+  async fetchMonthlyCategoryTotals(from: YearMonth, to: YearMonth) {
+    await this.wait()
+    if (!this.liveReports) return this.monthlyCategoryTotals.map((m) => ({ ...m }))
+    const out = new Map<string, MonthlyCategoryTotal>()
+    for (let m = from; compareMonths(m, to) <= 0; m = nextMonth(m)) {
+      for (const t of this.inMonth(m)) {
+        if (t.type === 'transfer') continue
+        const key = `${monthKey(m)}:${t.type}:${t.categoryId}`
+        const c = this.categories.find((x) => x.id === t.categoryId)
+        const row = out.get(key) ?? {
+          month: m,
+          kind: t.type,
+          categoryId: t.categoryId,
+          categoryName: c?.name ?? 'Uncategorized',
+          color: c?.color ?? '#9E9E9E',
+          count: 0,
+          totalPaise: 0,
+        }
+        row.count++
+        row.totalPaise += t.amountPaise
+        out.set(key, row)
+      }
+    }
+    return [...out.values()]
+  }
+
+  profile: Profile = {
+    theme: 'ocean',
+    dailyReminderEnabled: true,
+    dailyReminderTime: '20:30',
+    billRemindersEnabled: true,
+    billReminderDaysBefore: 3,
+  }
+  themeUpdates: string[] = []
+  failNextThemeUpdateWith: unknown = null
+
+  async fetchProfile(_userId: string) {
+    await this.wait()
+    return { ...this.profile }
+  }
+
+  async updateProfileTheme(_userId: string, theme: string) {
+    await this.wait()
+    const failure = this.failNextThemeUpdateWith
+    if (failure) {
+      this.failNextThemeUpdateWith = null
+      throw failure
+    }
+    this.themeUpdates.push(theme)
+    this.profile = { ...this.profile, theme }
+    this.emit({ table: 'profiles' })
+  }
+
+  bills: Bill[] = []
+  billInserts: { id: string; draft: BillDraft }[] = []
+  billUpdates: { id: string; draft: BillDraft }[] = []
+  billDeletes: string[] = []
+  reminderToggles: { id: string; enabled: boolean }[] = []
+  paidCalls: {
+    billId: string
+    month: YearMonth
+    txnId: string | null
+    amountPaise?: number
+    paidOn?: string
+    paymentMethod?: PaymentMethod | null
+  }[] = []
+  paidThroughSets: { id: string; month: YearMonth }[] = []
+
+  async fetchBills() {
+    await this.wait()
+    return this.bills.map((b) => ({ ...b }))
+  }
+
+  async insertBill(id: string, draft: BillDraft) {
+    await this.wait()
+    this.billInserts.push({ id, draft })
+    this.emit({ table: 'recurring_bills' })
+  }
+
+  async updateBill(id: string, draft: BillDraft) {
+    await this.wait()
+    this.billUpdates.push({ id, draft })
+    this.emit({ table: 'recurring_bills' })
+  }
+
+  async setBillReminder(id: string, enabled: boolean) {
+    await this.wait()
+    this.reminderToggles.push({ id, enabled })
+    this.bills = this.bills.map((b) => (b.id === id ? { ...b, reminderEnabled: enabled } : b))
+    this.emit({ table: 'recurring_bills' })
+  }
+
+  async deleteBill(id: string) {
+    await this.wait()
+    this.billDeletes.push(id)
+    this.bills = this.bills.filter((b) => b.id !== id)
+    this.emit({ table: 'recurring_bills' })
+  }
+
+  async markBillPaid(args: {
+    billId: string
+    month: YearMonth
+    txnId: string | null
+    amountPaise?: number
+    paidOn?: string
+    paymentMethod?: PaymentMethod | null
+  }): Promise<MarkPaidResult> {
+    await this.wait()
+    this.paidCalls.push(args)
+    this.emit({ table: 'recurring_bills' })
+    return { paidThroughMonth: args.month, transactionId: args.txnId, alreadyPaid: false }
+  }
+
+  async setBillPaidThrough(id: string, month: YearMonth) {
+    await this.wait()
+    this.paidThroughSets.push({ id, month })
+    this.emit({ table: 'recurring_bills' })
   }
 
   watchChanges(_userId: string, onChange: (c: DataChange) => void, onStatus: (s: LiveStatus) => void) {

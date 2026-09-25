@@ -107,6 +107,19 @@
     "#1565C0", "#3949AB", "#B39DDB", "#8E24AA", "#AD1457", "#EC407A",
     "#6D4C41", "#A1887F", "#546E7A", "#78909C", "#9E9E9E", "#263238"
   ],
+  "glyph": {
+    "$comment": "Glyph colour on a filled category circle (DECISIONS.md D13, D20): white or dark (87 % black over the circle), whichever contrasts more with the circle, white keeping near-ties within 10 %. Every palette colour gets 4.2:1 or better. Both apps compute this and their tests check it against onPalette, which covers every built-in category.",
+    "darkAlpha": 0.87,
+    "whiteTieMargin": 1.1,
+    "onPalette": {
+      "#E53935": "white", "#BF360C": "white", "#FFAB91": "dark", "#FB8C00": "dark",
+      "#FDD835": "dark", "#C0CA33": "dark", "#AED581": "dark", "#43A047": "dark",
+      "#2E7D32": "white", "#0097A7": "dark", "#4FC3F7": "dark", "#1E88E5": "dark",
+      "#1565C0": "white", "#3949AB": "white", "#B39DDB": "dark", "#8E24AA": "white",
+      "#AD1457": "white", "#EC407A": "dark", "#6D4C41": "white", "#A1887F": "dark",
+      "#546E7A": "white", "#78909C": "dark", "#9E9E9E": "dark", "#263238": "white"
+    }
+  },
   "merchantBadge": {
     "$comment": "Letter badge derived from a transaction description (no logos, nothing sent anywhere). key = first word of the normalized description that is not a filler word and not only digits; letter = its first character, upper-cased; colour = palette[fnv1a32(utf8(key)) % palette.length]. Normalization: lower-case, every run of characters that are not letters, combining marks or digits -> one space (so Devanagari vowel signs stay inside their word), trim.",
     "fillerWords": [

@@ -124,25 +124,31 @@ export type Database = {
       }
       profiles: {
         Row: {
+          bill_reminder_days_before: number
           bill_reminders_enabled: boolean
           created_at: string
           daily_reminder_enabled: boolean
+          daily_reminder_time: string
           id: string
           theme: string
           updated_at: string
         }
         Insert: {
+          bill_reminder_days_before?: number
           bill_reminders_enabled?: boolean
           created_at?: string
           daily_reminder_enabled?: boolean
+          daily_reminder_time?: string
           id: string
           theme?: string
           updated_at?: string
         }
         Update: {
+          bill_reminder_days_before?: number
           bill_reminders_enabled?: boolean
           created_at?: string
           daily_reminder_enabled?: boolean
+          daily_reminder_time?: string
           id?: string
           theme?: string
           updated_at?: string
@@ -160,6 +166,7 @@ export type Database = {
           kind: string
           name: string
           owner_id: string
+          paid_through_month: string
           reminder_enabled: boolean
           updated_at: string
         }
@@ -173,6 +180,7 @@ export type Database = {
           kind: string
           name: string
           owner_id?: string
+          paid_through_month: string
           reminder_enabled?: boolean
           updated_at?: string
         }
@@ -186,6 +194,7 @@ export type Database = {
           kind?: string
           name?: string
           owner_id?: string
+          paid_through_month?: string
           reminder_enabled?: boolean
           updated_at?: string
         }
@@ -281,6 +290,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_bill_schedule: {
+        Args: { p_today?: string }
+        Returns: {
+          account_id: string
+          amount_paise: number
+          category_id: string
+          days_until: number
+          due_day: number
+          id: string
+          kind: string
+          name: string
+          next_due_date: string
+          overdue_count: number
+          paid_through_month: string
+          reminder_enabled: boolean
+          status: string
+        }[]
+      }
       get_month_comparison: {
         Args: { p_month?: string }
         Returns: {
@@ -318,6 +345,33 @@ export type Database = {
           month: string
           total_paise: number
           transaction_count: number
+        }[]
+      }
+      get_monthly_totals: {
+        Args: { p_from_month?: string; p_to_month?: string }
+        Returns: {
+          expense_count: number
+          expense_paise: number
+          income_count: number
+          income_paise: number
+          month: string
+          net_paise: number
+          uncategorized_count: number
+        }[]
+      }
+      mark_bill_paid: {
+        Args: {
+          p_amount_paise?: number
+          p_bill_id: string
+          p_month: string
+          p_paid_on?: string
+          p_payment_method?: string
+          p_txn_id?: string
+        }
+        Returns: {
+          already_paid: boolean
+          paid_through_month: string
+          transaction_id: string
         }[]
       }
     }

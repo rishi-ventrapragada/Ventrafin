@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../core/errors.dart';
-import '../../core/theme.dart';
 import '../../data/providers.dart';
 import 'auth_service.dart';
 
@@ -57,7 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.account_balance_wallet, size: 64, color: kOceanPrimary),
+                Icon(Icons.account_balance_wallet, size: 64, color: theme.colorScheme.primary),
                 const SizedBox(height: 12),
                 Text('Ventrafin', style: theme.textTheme.headlineMedium),
                 const SizedBox(height: 4),

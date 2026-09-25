@@ -75,7 +75,7 @@ const groups = computed(() => {
               <td class="text-right">
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium text-ocean hover:bg-blue-50"
+                  class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium text-primary hover:bg-primary-soft"
                   :aria-label="`Edit ${c.name}`"
                   @click.stop="editing = c"
                 >

@@ -4,19 +4,27 @@
 @import "tailwindcss";
 @plugin "tailwindcss-primeui";
 
+/* Theme colours (DECISIONS.md D22): set on <html> by applyTheme() from
+   /shared/theme-tokens.json; Ocean until then. `primary` itself comes from
+   PrimeVue (tailwindcss-primeui), whose preset swaps with the theme. */
+@theme inline {
+  --color-brand: var(--vf-brand);
+  --color-on-brand: var(--vf-on-brand);
+  --color-brand-indicator: var(--vf-brand-indicator);
+  --color-primary-soft: var(--vf-primary-soft);
+  --color-accent: var(--vf-accent);
+  --color-page: var(--vf-page);
+}
+
 @theme {
   /* Segoe UI on Dad's Windows PC; the rest are fallbacks. */
   --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
-  --color-ocean: #1565c0;
-  --color-ocean-dark: #0d47a1;
-  --color-accent: #00897b;
   --color-expense: #c62828;
   --color-income: #2e7d32;
   --color-transfer: #546e7a;
   --color-uncat: #b26a00;
   /* The Uncategorized amber as words: #b26a00 is only 4.2:1 on white. */
   --color-uncat-ink: #7a4a00;
-  --color-page: #f3f6f9;
   /* Table and list text: a step under the body size, so dense tables
      (DECISIONS.md D7) keep their rows per screen. 16px at the 17px root. */
   --text-dense: 0.94rem;
@@ -44,9 +52,16 @@
     color: #1f2937;
     -webkit-font-smoothing: antialiased;
   }
-  /* Light mode only (PRD § 4.8). */
+  /* Light mode only (PRD § 4.8). Ocean until applyTheme() runs. */
   :root {
     color-scheme: light;
+    --vf-brand: #1565c0;
+    --vf-on-brand: #ffffff;
+    --vf-brand-indicator: #80cbc4;
+    --vf-primary: #1565c0;
+    --vf-primary-soft: #e8f3fd;
+    --vf-accent: #00796b;
+    --vf-page: #f3f6f9;
   }
 }
 
@@ -93,7 +108,7 @@
     vertical-align: middle;
   }
   .dense-table tr:hover td {
-    background: #f8fbff;
+    background: color-mix(in srgb, var(--vf-primary-soft) 55%, white);
   }
   kbd {
     font-family: inherit;

@@ -126,6 +126,108 @@ class SupabaseFinanceRepository implements FinanceRepository {
       });
 
   @override
+  Future<List<MonthlyTotal>> fetchMonthlyTotals(YearMonth from, YearMonth to) => _run(() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'get_monthly_totals',
+      params: {'p_from_month': toIsoDate(from.firstDay), 'p_to_month': toIsoDate(to.firstDay)},
+    );
+    return rows.map((r) => MonthlyTotal.fromRow(r as Map<String, dynamic>)).toList();
+  });
+
+  @override
+  Future<List<MonthlyCategoryTotal>> fetchMonthlyCategoryTotals(YearMonth from, YearMonth to) => _run(() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'get_monthly_category_totals',
+      params: {'p_from_month': toIsoDate(from.firstDay), 'p_to_month': toIsoDate(to.firstDay)},
+    );
+    return rows.map((r) => MonthlyCategoryTotal.fromRow(r as Map<String, dynamic>)).toList();
+  });
+
+  String get _userId {
+    final id = _client.auth.currentUser?.id;
+    if (id == null) throw const AuthException('Not signed in');
+    return id;
+  }
+
+  @override
+  Future<Profile> fetchProfile() => _run(() async {
+    final row = await _client.from('profiles').select().eq('id', _userId).single();
+    return Profile.fromRow(row);
+  });
+
+  @override
+  Future<void> updateProfile(ProfilePatch patch) => _run(() async {
+    final row = patch.toRow();
+    if (row.isEmpty) return;
+    await _client.from('profiles').update(row).eq('id', _userId).select('id').single();
+  });
+
+  @override
+  Future<List<Bill>> fetchBills() => _run(() async {
+    final rows = await _client.rpc<List<dynamic>>('get_bill_schedule');
+    return rows.map((r) => Bill.fromScheduleRow(r as Map<String, dynamic>)).toList();
+  });
+
+  @override
+  Future<void> insertBill(String id, BillDraft draft) async {
+    try {
+      await _run(() => _client.from('recurring_bills').insert({'id': id, ...draft.toRow()}));
+    } on PostgrestException catch (e) {
+      // An earlier attempt with this id already went through.
+      if (e.code == '23505' && e.message.contains('pkey')) return;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> updateBill(String id, BillDraft draft) => _run(() async {
+    await _client.from('recurring_bills').update(draft.toRow()).eq('id', id).select('id').single();
+  });
+
+  @override
+  Future<void> setBillReminder(String id, bool enabled) => _run(() async {
+    await _client.from('recurring_bills').update({'reminder_enabled': enabled}).eq('id', id).select('id').single();
+  });
+
+  @override
+  Future<void> deleteBill(String id) => _run(() async {
+    await _client.from('recurring_bills').delete().eq('id', id);
+  });
+
+  @override
+  Future<MarkPaidResult> markBillPaid({
+    required String billId,
+    required YearMonth month,
+    String? txnId,
+    int? amountPaise,
+    DateTime? paidOn,
+    PaymentMethod? paymentMethod,
+  }) => _run(() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'mark_bill_paid',
+      params: {
+        'p_bill_id': billId,
+        'p_month': toIsoDate(month.firstDay),
+        'p_txn_id': txnId,
+        'p_amount_paise': amountPaise,
+        'p_paid_on': paidOn == null ? null : toIsoDate(paidOn),
+        'p_payment_method': paymentMethod?.db,
+      },
+    );
+    return MarkPaidResult.fromRow(rows.first as Map<String, dynamic>);
+  });
+
+  @override
+  Future<void> setBillPaidThrough(String id, YearMonth month) => _run(() async {
+    await _client
+        .from('recurring_bills')
+        .update({'paid_through_month': toIsoDate(month.firstDay)})
+        .eq('id', id)
+        .select('id')
+        .single();
+  });
+
+  @override
   Stream<DataChange> watchChanges() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return const Stream.empty();

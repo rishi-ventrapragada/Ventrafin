@@ -10,8 +10,8 @@ import '../../data/providers.dart';
 import '../dashboard/category_breakdown.dart';
 
 /// Dashboard: this month's headline numbers (from `get_month_totals`), the
-/// spending-by-category breakdown, and quick actions. Fuller reports come in
-/// phase 5.
+/// spending-by-category breakdown, and quick actions. Past months and
+/// trends are on the Reports screen.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -94,9 +94,12 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
           ]),
-          const SizedBox(height: 16),
-          Text('Month-by-month reports are coming in a later update.',
-              style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => context.go('/more/reports'),
+            icon: const Icon(Icons.bar_chart),
+            label: const Text('Reports: past months and trends'),
+          ),
         ],
       ),
     );
@@ -146,8 +149,8 @@ class MoreScreen extends StatelessWidget {
       body: ListView(children: [
         tile(Icons.category_outlined, 'Categories', 'Expense and income categories', '/more/categories'),
         tile(Icons.account_balance_wallet_outlined, 'Accounts', 'Cash, bank and credit card', '/more/accounts'),
-        tile(Icons.bar_chart, 'Reports', 'Month-by-month comparisons', '/more/reports'),
-        tile(Icons.settings_outlined, 'Settings', 'App lock, fingerprint, sign out', '/more/settings'),
+        tile(Icons.bar_chart, 'Reports', 'Any month by category, 6- and 12-month trends', '/more/reports'),
+        tile(Icons.settings_outlined, 'Settings', 'Reminders, theme, app lock, sign out', '/more/settings'),
       ]),
     );
   }

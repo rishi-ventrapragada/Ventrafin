@@ -25,6 +25,7 @@ flutter pub get
 flutter devices                                              # phone connected with USB debugging?
 flutter run --dart-define-from-file=config/dev.json          # debug build on the phone
 flutter test                                                 # unit + widget tests
+dart run tool/gen_theme_tokens.dart                          # after editing /shared/theme-tokens.json
 flutter build apk --release --dart-define-from-file=config/dev.json
 ```
 
@@ -42,8 +43,10 @@ cd android; .\gradlew signingReport
 lib/
   main.dart, app.dart, router.dart   bootstrap, theme, routes and redirects
   config/        build-time config
-  core/          money (paise <-> ₹, Indian grouping), India time, errors, theme, offline banner,
-                 category icons/palette (mirror of /shared/category-style.json), merchant badges, badge widgets
+  core/          money (paise <-> ₹, Indian grouping), India time, errors, offline banner, month bar,
+                 theme (six themes; theme_tokens.g.dart is generated from /shared/theme-tokens.json),
+                 category icons/palette/glyph rules (mirror of /shared/category-style.json),
+                 merchant badges, badge widgets
   data/          models, repository (Supabase), Riverpod providers, Realtime -> revisions
   features/
     auth/        native Google Sign-In -> signInWithIdToken
@@ -52,9 +55,26 @@ lib/
     transactions/  month list grouped by date, delete, live updates
     categories/  category list + rename / icon / colour editor
     dashboard/   spending-by-category donut and table
-    shell/ settings/  bottom nav, dashboard, More, placeholders, settings
-test/            money, pattern-hash and category-style unit tests; add-flow and screen widget tests
+    reports/     any month by category, 6/12-month income-vs-spending and category trends (fl_chart + tables)
+    bills/       bills list with due status, add/edit form, "Mark paid" sheet
+    reminders/   reminder plan (pure), flutter_local_notifications wrapper, sync provider, permission prompt
+    shell/ settings/  bottom nav, dashboard, More; settings (reminders, theme, app lock, sign out)
+tool/            gen_theme_tokens.dart
+test/            money, pattern-hash, category-style, theme (contrast on all six themes) and reminder-plan
+                 unit tests; add-flow, screen and large-text layout widget tests
                  (support/fake_repository.dart is the shared in-memory repository)
 ```
 
 Screens set FLAG_SECURE (DECISIONS.md D15), so `adb screencap` and screen mirroring show black on a real device.
+
+## Reminders (phase 6)
+
+Scheduled on the phone with `flutter_local_notifications`, in Asia/Kolkata whatever the phone's time zone
+(DECISIONS.md D24). Android permissions:
+- **Notifications** (Android 13+): asked once, after a short explanation, the first time the app opens with a
+  reminder switched on. If refused, Settings shows a banner; its **Allow** asks again, and once Android stops
+  showing its prompt (after two refusals) it opens the app's notification settings instead.
+- **Alarms & reminders** (exact timing, off by default on Android 14+): not required. Without it reminders are
+  scheduled as inexact alarms and may arrive some minutes late; Settings says so and offers **Allow**.
+- Reminders survive a reboot or an app update (boot receiver). Signing out cancels them all.
+- Settings › **Send a test reminder** shows one straight away.

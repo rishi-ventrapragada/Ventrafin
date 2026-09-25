@@ -59,6 +59,9 @@ class CategoryAvatar extends StatelessWidget {
 }
 
 /// Filled circle with a readable glyph (white, or dark on pale colours).
+/// A colour too close to one of the theme's surfaces (yellow on white) also
+/// gets a thin darker outline, so the circle doesn't dissolve into the card
+/// or a highlighted row (DECISIONS.md D20).
 class ColorIconCircle extends StatelessWidget {
   const ColorIconCircle({super.key, required this.icon, required this.color, this.size = 32, this.semanticLabel});
 
@@ -69,11 +72,17 @@ class ColorIconCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final edge = circleEdgeFor(color, AppPalette.of(context).tokens.surfaces);
     return Container(
+      key: edge == null ? null : const ValueKey('circle-edge'),
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: edge == null ? null : Border.all(color: edge, width: 1),
+      ),
       child: Icon(icon, size: size * 0.58, color: foregroundOn(color), semanticLabel: semanticLabel),
     );
   }
@@ -97,6 +106,9 @@ class OutlinedIconCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The glyph and ring in a shade readable on the tint over this theme's
+    // surfaces (the amber "?" was 3.7:1), as on the web.
+    final ink = outlinedInkFor(color, AppPalette.of(context).tokens.surfaces);
     return Container(
       width: size,
       height: size,
@@ -104,9 +116,9 @@ class OutlinedIconCircle extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
         shape: BoxShape.circle,
-        border: Border.all(color: color, width: size >= 28 ? 2 : 1.5),
+        border: Border.all(color: ink, width: size >= 24 ? 2 : 1.5),
       ),
-      child: Icon(icon, size: size * 0.55, color: color, semanticLabel: semanticLabel),
+      child: Icon(icon, size: size * 0.55, color: ink, semanticLabel: semanticLabel),
     );
   }
 }
@@ -207,7 +219,8 @@ class MerchantBadge extends StatelessWidget {
           fontSize: size * 0.62,
           height: 1,
           fontWeight: FontWeight.w700,
-          color: readableTextColor(color),
+          // Readable on the badge's own tint, not just on white.
+          color: readableTextColor(color, surface: Color.alphaBlend(color.withValues(alpha: 0.18), kCardColor)),
         ),
       ),
     );

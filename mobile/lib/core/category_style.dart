@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Curated category icons and colours (DECISIONS.md D13).
@@ -131,20 +133,60 @@ const List<String> kCategoryPaletteHex = [
 String toHexColor(Color c) =>
     '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
-/// White or near-black, whichever reads better on [background]. White wins
-/// whenever it reaches the 3:1 contrast WCAG asks of icons, so most circles
-/// get white glyphs; pale ones (yellow, peach, sky) get dark glyphs.
-Color foregroundOn(Color background) {
-  final l = background.computeLuminance();
-  final whiteContrast = 1.05 / (l + 0.05);
-  return whiteContrast >= 3 ? Colors.white : const Color(0xDD000000);
+/// WCAG contrast ratio between two opaque colours (1 to 21).
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance(), lb = b.computeLuminance();
+  return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
 }
 
-/// A darker shade of [c] for text written in the category's colour on a
-/// light surface (pale palette colours are unreadable as text otherwise).
-Color readableTextColor(Color c) {
+/// The dark glyph colour: 87 % black, drawn over the circle.
+const Color kDarkGlyph = Color(0xDD000000);
+
+/// White or near-black, whichever has more contrast on [background]; white
+/// keeps near-ties (within 10 %, e.g. red #E53935, where both are about
+/// 4.4:1). Every palette colour gets a glyph at 4.2:1 or better. Same rule
+/// as the web app; /shared/category-style.json lists the result for every
+/// palette colour and both apps' tests check it (DECISIONS.md D20).
+Color foregroundOn(Color background) {
+  final whiteContrast = contrastRatio(Colors.white, background);
+  final darkContrast = contrastRatio(Color.alphaBlend(kDarkGlyph, background), background);
+  return whiteContrast * 1.1 >= darkContrast ? Colors.white : kDarkGlyph;
+}
+
+/// A darker shade of [c] that reaches [minRatio] (4.5:1 unless given) on
+/// [surface] (white unless given): for text or glyphs drawn in a category's
+/// colour, since pale palette colours are unreadable as text otherwise.
+Color readableTextColor(Color c, {Color surface = Colors.white, double minRatio = 4.5}) {
   var out = c;
-  for (var i = 0; i < 6 && (1.05 / (out.computeLuminance() + 0.05)) < 4.5; i++) {
+  for (var i = 0; i < 6 && contrastRatio(out, surface) < minRatio; i++) {
+    out = Color.lerp(out, Colors.black, 0.2)!;
+  }
+  return out;
+}
+
+/// The glyph and ring colour of an outlined circle (Uncategorized, Transfer,
+/// Auto): a shade of [color] that reaches 4.5:1 on the circle's 10 % tint
+/// over each of [surfaces] (DECISIONS.md D20).
+Color outlinedInkFor(Color color, Iterable<Color> surfaces) {
+  final tints = [for (final s in surfaces) Color.alphaBlend(color.withValues(alpha: 0.10), s)];
+  var out = color;
+  for (var i = 0; i < 8 && tints.any((t) => contrastRatio(out, t) < 4.5); i++) {
+    out = Color.lerp(out, Colors.black, 0.2)!;
+  }
+  return out;
+}
+
+/// Below this contrast against a surface it sits on, a filled circle's edge
+/// gets lost (yellow on white is 1.4:1), so it gets an outline.
+const double kCircleEdgeMinContrast = 1.5;
+
+/// The outline for a filled circle of [fill] shown on any of [surfaces], or
+/// null when the fill stands out from all of them: a darker shade of the
+/// fill at 3:1 or better against every surface (DECISIONS.md D20).
+Color? circleEdgeFor(Color fill, Iterable<Color> surfaces) {
+  if (surfaces.every((s) => contrastRatio(fill, s) >= kCircleEdgeMinContrast)) return null;
+  var out = fill;
+  for (var i = 0; i < 8 && surfaces.any((s) => contrastRatio(out, s) < 3); i++) {
     out = Color.lerp(out, Colors.black, 0.2)!;
   }
   return out;

@@ -54,27 +54,35 @@ node scripts/gen-icons.mjs   # regenerate src/lib/icons.generated.ts after chang
     - amounts with `₹`, `Rs`, commas, `-500`, `(500)`, `Dr`/`Cr`;
     - payment words like GPay, PhonePe, "credit card".
 - **Transactions**: click a cell to edit it in place. Enter or Tab saves, Esc cancels. Changing a category teaches the database's learning trigger, as on the phone. Filter by month (kept in the URL), account, category (including *Uncategorized* and *Transfers*) and text. Delete one row or several; both ask first.
+- **Reports**: pick any month for its totals and categories against the month before, then 6- or 12-month trends: income against spending, and spending by category (top five in the chart, every category in the table below it). Hover a month in a chart to see its numbers.
+- **Bills**: what's due, soonest first; overdue in red, due within a week in amber. **Mark paid** can add the payment to Transactions in the same step. Add, edit, delete, and switch a bill's reminder on or off here; the reminders themselves pop up on the phone.
+- **Settings › Theme**: six colour themes; the phone follows.
 - Every page updates live when something changes on the phone (Supabase Realtime). The top bar shows **Live**, or **Reconnecting…** if the connection drops. When the browser goes offline a red banner says so, and saves are refused with a message; nothing fails silently.
 
 ## Layout
 
 ```
 index.html, vite.config.ts, vercel.json      entry, build + test config, Vercel rewrite + security headers
-demo.html, demo/                              dev-only demo on fake data
+demo.html, demo/                              dev-only demo on fake data (demo.html?theme=marigold for another theme)
 scripts/gen-icons.mjs                         Material Symbols -> src/lib/icons.generated.ts
 src/
-  main.ts, App.vue, router.ts, ui.ts          bootstrap, routes + sign-in guard, PrimeVue (Ocean preset)
+  main.ts, App.vue, router.ts, ui.ts          bootstrap, routes + sign-in guard, PrimeVue (theme preset)
   lib/        pure logic, no Vue: money (paise <-> ₹), dates (IST), entryRow (grid row parser),
               paste (Excel clipboard), cellEdit (table edits), models, categoryStyle + merchant
-              (mirror /shared/category-style.json), options, errors, generated icons, DB types
+              (mirror /shared/category-style.json), theme (/shared/theme-tokens.json: CSS variables +
+              PrimeVue preset), reports (trend shaping, axis labels), bills (status wording),
+              options, errors, generated icons, DB types
   data/       repository interface + Supabase implementation, auth (Google, PKCE), app context
               (revisions per table, Realtime, online state, liveQuery), entry prefs
   components/ icons, category/merchant/account badges, ComboInput (pick-list cell), month switcher,
-              donut, app shell, add/ (EntryGrid, PasteDialog, SavedPanel)
-  pages/      Dashboard, Transactions, Add, Categories, Accounts, Bills*, Reports*, Settings, Login,
-              AuthCallback, NotFound (* placeholders until phases 5-6)
+              donut, bar chart (SVG), bill + mark-paid dialogs, app shell,
+              add/ (EntryGrid, PasteDialog, SavedPanel)
+  pages/      Dashboard, Transactions, Add, Categories, Accounts, Bills, Reports, Settings, Login,
+              AuthCallback, NotFound
 tests/
-  unit/       money, dates, paste, entryRow, cellEdit, visuals (icons/palette/badges = phone), deploy (CSP)
-  components/ Add grid; Transactions, Categories, Dashboard, Realtime, sign-in guard
+  unit/       money, dates, paste, entryRow, cellEdit, visuals (icons/palette/badges = phone), deploy (CSP),
+              themes (all six: contrast, category colours, glyphs = phone), reportsBills
+  components/ Add grid; Transactions, Categories, Dashboard, Realtime, sign-in guard; Reports, Bills,
+              Settings theme (phase567)
   support/    fake repository, mountApp helper
 ```

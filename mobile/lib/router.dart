@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import 'data/providers.dart';
 import 'features/auth/login_screen.dart';
+import 'features/bills/bill_form_screen.dart';
+import 'features/bills/bills_screen.dart';
 import 'features/categories/categories_screen.dart';
 import 'features/entry/add_screen.dart';
 import 'features/entry/edit_transaction_screen.dart';
 import 'features/lock/lock_controller.dart';
 import 'features/lock/setup_lock_screen.dart';
+import 'features/reports/reports_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'features/shell/simple_screens.dart';
@@ -18,7 +21,7 @@ final _rootKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
 /// Routes (one per section, DECISIONS.md D8):
 ///   /login, /setup-lock, /splash
-///   /dashboard  /transactions (/transactions/:id)  /add  /bills
+///   /dashboard  /transactions (/transactions/:id)  /add  /bills (/bills/new, /bills/:id)
 ///   /more (/more/categories, /more/accounts, /more/reports, /more/settings)
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
@@ -69,11 +72,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/bills',
-              builder: (_, _) => const ComingSoonScreen(
-                title: 'Bills',
-                icon: Icons.event_note,
-                note: 'Utility bills, EMIs and their reminders are coming in a later update.',
-              ),
+              builder: (_, _) => const BillsScreen(),
+              routes: [
+                GoRoute(path: 'new', parentNavigatorKey: _rootKey, builder: (_, _) => const BillFormScreen()),
+                GoRoute(
+                  path: ':id',
+                  parentNavigatorKey: _rootKey,
+                  builder: (_, state) => BillFormScreen(billId: state.pathParameters['id']),
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [
@@ -83,14 +90,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               routes: [
                 GoRoute(path: 'categories', builder: (_, _) => const CategoriesScreen()),
                 GoRoute(path: 'accounts', builder: (_, _) => const AccountsScreen()),
-                GoRoute(
-                  path: 'reports',
-                  builder: (_, _) => const ComingSoonScreen(
-                    title: 'Reports',
-                    icon: Icons.bar_chart,
-                    note: 'Month-vs-month comparisons, category totals and charts are coming in a later update.',
-                  ),
-                ),
+                GoRoute(path: 'reports', builder: (_, _) => const ReportsScreen()),
                 GoRoute(
                   path: 'settings',
                   builder: (_, _) => const SettingsScreen(),

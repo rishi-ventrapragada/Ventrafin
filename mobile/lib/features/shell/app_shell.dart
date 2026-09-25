@@ -3,18 +3,50 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/providers.dart';
+import '../lock/lock_controller.dart';
+import '../reminders/reminder_prompt.dart';
+import '../reminders/reminder_sync.dart';
 
 /// Bottom navigation: Dashboard / Transactions / Add / Bills / More.
 /// Each tab keeps its own navigation stack (go_router StatefulShellRoute).
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Keep the Realtime subscription open while the signed-in app is showing.
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  bool _asked = false;
+
+  /// Once per install: explain reminders, then Android's permission prompt.
+  /// Not while the lock screen is up (the dialog would sit underneath it).
+  void _askOnceUnlocked() {
+    if (_asked || ref.read(lockControllerProvider)) return;
+    _asked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeAskForReminderPermission(context, ref);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _askOnceUnlocked();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final navigationShell = widget.navigationShell;
+    ref.listen(lockControllerProvider, (_, locked) {
+      if (!locked) _askOnceUnlocked();
+    });
+    // Keep the Realtime subscription open while the signed-in app is showing,
+    // and the phone's reminders in step with the settings and bills.
     ref.watch(realtimeSyncProvider);
+    ref.watch(reminderSyncProvider);
 
     return Scaffold(
       body: navigationShell,

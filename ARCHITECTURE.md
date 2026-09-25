@@ -46,7 +46,9 @@ Conventions that apply to every table:
 | id | uuid, PK, references auth.users | acts as owner_id |
 | theme | text | `ocean` / `sunset` / `forest` / `garden` / `sunflower` / `marigold`, default `'ocean'` |
 | daily_reminder_enabled | boolean | default true |
-| bill_reminders_enabled | boolean | master switch, default true |
+| daily_reminder_time | time | India time, whole minutes, default `20:30` |
+| bill_reminders_enabled | boolean | master switch for bill reminders (not the daily one), default true |
+| bill_reminder_days_before | smallint | 0–10, default 3: bill reminders fire this many days before the due date and again on it |
 
 Clients can select, insert and update their own profile but not delete it; its lifecycle follows `auth.users`.
 
@@ -108,6 +110,7 @@ Clients can select, insert and update their own profile but not delete it; its l
 | account_id | uuid | composite FK to accounts |
 | category_id | uuid, nullable | composite FK to categories |
 | reminder_enabled | boolean | default true |
+| paid_through_month | date | first day of the latest month whose bill is paid; the next unpaid bill is due the month after. Filled in on insert when omitted: the first month whose due date is today or later is owed. Any date is moved to the first of its month. See `DECISIONS.md` D23 |
 
 ### Internal (`private` schema, not exposed through the API)
 - `private.builtin_categories`: every category the system can create: name, kind, colour, icon, and whether it's a starter.
@@ -140,7 +143,11 @@ Because two independently-built clients write to the same data, any logic that m
   - `get_month_totals(p_month date default null)`: one row with this month vs last month for expense, income and net, plus this month's Uncategorized count.
   - `get_month_comparison(p_month date default null)`: per category (Uncategorized included as `category_id NULL`), this month vs last month, change in paise and %.
   - `get_monthly_category_totals(p_from_month, p_to_month)`: per month × category totals; defaults to the last 12 months.
+  - `get_monthly_totals(p_from_month, p_to_month)`: one row per month (oldest first, empty months as zeros) with spent, income, net, entry counts and the Uncategorized count; defaults to the last 12 months, at most 120. The Reports trends use it.
   - `p_month` is any date in the month; NULL means the current month in Asia/Kolkata. **Transfers are excluded** from all totals: a credit-card purchase is an expense when it happens, and paying the card bill is a transfer.
+- **Bills** (`DECISIONS.md` D23): every month has one instance of a bill, due on `due_day` clamped to the month's last day (`private.bill_due_date`).
+  - `get_bill_schedule(p_today default null)`: each bill with `next_due_date` (the month after `paid_through_month`), `days_until` (negative = overdue), `status` (`overdue` / `due_today` / `due_soon` within 7 days / `upcoming`) and `overdue_count`. Both apps show it; the phone schedules reminders from it.
+  - `mark_bill_paid(p_bill_id, p_month, p_txn_id, p_amount_paise, p_paid_on, p_payment_method)`: sets `paid_through_month` to `p_month` and, with `p_txn_id`, inserts the payment as an expense (the bill's name, account and category) in the same transaction. When the month is already paid it changes nothing and logs nothing, so a retry or the same tap on the other app can't double-count. Undo is a plain update of `paid_through_month`.
 - **Category icon and colour defaults**: a `BEFORE INSERT` trigger on `categories` fills in whichever of `icon` / `color` the client left out:
   - a built-in name gets its built-in icon and colour;
   - a name that the built-in keyword list recognises ("Petrol") gets that category's icon;
@@ -207,9 +214,17 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
   - Fingerprint comes first (via `local_auth`), with the pattern as fallback.
   - The app locks on cold start, and on resume after a background timeout (a constant in code).
   - The lock is an overlay above the navigator, so an in-progress entry survives a re-lock.
-- `flutter_local_notifications` for the daily nudge and bill/EMI reminders (phase 6), scheduled locally from `recurring_bills`/`profiles` settings. No server-side push is needed, since reminders are local-time-based.
-- `fl_chart` for reporting charts (phase 5).
+- **Reminders** (`DECISIONS.md` D24): `flutter_local_notifications`, scheduled on the phone from `profiles` and `get_bill_schedule()`, with no server push.
+  - A pure planner (`features/reminders/reminder_plan.dart`) turns the profile and bills into a list of notifications; a provider replaces everything scheduled with that list whenever a setting or a bill changes (here or on the web, via Realtime) and on returning to the app.
+  - Daily reminder: repeats every day at `daily_reminder_time` in Asia/Kolkata. Bill reminders: 9:00 am IST `bill_reminder_days_before` days before the due date and on the due date, for the next three months of each bill with both its own switch and the master switch on. Nothing is scheduled for an already-overdue month.
+  - Exact alarms when Android allows them (`SCHEDULE_EXACT_ALARM`), inexact otherwise. A boot receiver restores them after a restart. Signing out cancels them.
+  - Tapping a reminder opens Add (daily) or Bills.
+- `fl_chart` for the Dashboard donut and the Reports charts.
 - **Navigation**: bottom nav bar (Dashboard / Transactions / Add / Bills / More). **More** leads to Categories, Accounts, Reports and Settings. Each is a distinct route, not a single scrolling page.
+- **Reports** (`/more/reports`): a month picker; that month's totals (spent, income, net, saved %) against the month before; spending and income by category with entry counts and shares; then 6- or 12-month trends ending with the chosen month: income against spending (grouped bars + table) and spending by category (stacked bars of the top five plus Other + a category × month table that scrolls sideways).
+- **Bills** (`/bills`): bills soonest due first with a status chip, a bell per bill for its reminder, and a sheet to mark a month paid (optionally logging the payment) or edit/delete. `/bills/new` and `/bills/:id` are the form.
+- **Settings**: reminders (daily switch and time, bill master switch and how many days before, notification and exact-alarm permission states, a test notification), the theme picker, app lock and sign-out.
+- **Themes** (`DECISIONS.md` D22): `buildAppTheme` builds the `ThemeData` from the generated tokens; the app bar uses the theme's brand colour, cards and sheets stay white on the theme's page colour.
 - **Entry flow**:
   - An on-screen number keypad comes first, then the other fields.
   - "Save & add another" supports end-of-day batch logging and keeps the date, type, account and payment method between entries.
@@ -256,7 +271,9 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
   - category circles and colours from `/shared/category-style.json`;
   - the same merchant letter badges (FNV-1a, checked against vectors printed by the Dart code);
   - account and payment-method icons;
-  - the Ocean colours.
+  - the same six themes (below).
+- **Reports** and **Bills** match the phone's (same SQL functions, same wording). Charts are SVG drawn by the app (no chart library): one rupee axis, the same numbers in a table beside each chart, and a tooltip per month. Bills has no notifications of its own (they are on the phone); it shows due-soon and overdue in colour and lets Dad mark bills paid, add, edit and delete them.
+- **Themes**: applied from `profiles.theme` (the phone's change arrives via Realtime) by setting CSS variables for the brand colours and swapping PrimeVue's preset; the last theme is kept in `localStorage` so the page opens in it.
 - **No offline mode**: an offline banner, and saves are refused with a message while offline. Every failed save says why and keeps what was typed.
 - Hosted on **Vercel**. `web/vercel.json` rewrites every path to `index.html` (so deep links and refreshes work) and sets security headers:
   - a CSP allowing only the app's own origin and the Supabase project's `https://`/`wss://` URL. Styles also allow `'unsafe-inline'`, because PrimeVue injects its theme at runtime. There are no third-party fonts or scripts;
@@ -264,7 +281,14 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
 
 ## 8. Shared theming
 
-A single `theme-tokens.json` (or equivalent) defines each theme's primary/accent colors and chart palette. Both apps consume this file (copied in or symlinked at build time — implementation detail left open) so a theme looks identical on both, and both derive their color scheme from it rather than hardcoding values independently. The user's selected theme is persisted in `profiles.theme` and applied on load in both apps.
+`/shared/theme-tokens.json` defines the six themes and the semantic colours (`DECISIONS.md` D22). Each theme has:
+- `brand` / `onBrand` / `brandIndicator`: the phone's app bar and the web sidebar, the text on them, and the current-section marker;
+- `primary` / `primaryHover` / `primarySoft`: buttons, links, switches and selections, readable as text on white and under white text, and the highlight behind selected rows;
+- `accent` / `onAccent` / `accentSoft`: secondary highlights (the phone's navigation indicator);
+- `page`: the background behind the white cards;
+- `primaryScale`: shades of `primary` for PrimeVue.
+
+The web app imports the JSON; the phone's `theme_tokens.g.dart` is generated from it by `mobile/tool/gen_theme_tokens.dart`, and a test fails if it is stale. The semantic colours (expense red, income green, transfer grey, Uncategorized amber) and the category colours are the same in every theme. The theme is stored in `profiles.theme`: picking one on either app applies it at once, and the other follows through Realtime.
 
 ## 9. What's deliberately absent
 

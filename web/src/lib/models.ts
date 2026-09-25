@@ -3,6 +3,7 @@
 // mobile/lib/core/visual_badges.dart).
 import type { Database } from './database.types'
 import { parseHex } from './categoryStyle'
+import { monthOf, type YearMonth } from './dates'
 
 type Tables = Database['public']['Tables']
 export type TxnRow = Tables['transactions']['Row']
@@ -267,4 +268,182 @@ export function categoryNameError(
 /** Categories sorted by name, case-insensitively. */
 export function sortByName<T extends { name: string }>(items: readonly T[]): T[] {
   return [...items].sort((a, b) => a.name.localeCompare(b.name, 'en-IN', { sensitivity: 'base' }))
+}
+
+// ---------------------------------------------------------------------------
+// Reports over a range of months
+// ---------------------------------------------------------------------------
+
+/** One row of `get_monthly_totals()`: a month's totals (zeros when empty). */
+export interface MonthlyTotal {
+  month: YearMonth
+  expensePaise: number
+  incomePaise: number
+  expenseCount: number
+  incomeCount: number
+  uncategorizedCount: number
+}
+
+export function monthlyTotalFromRow(r: Database['public']['Functions']['get_monthly_totals']['Returns'][number]): MonthlyTotal {
+  return {
+    month: monthOf(r.month),
+    expensePaise: asPaise(r.expense_paise),
+    incomePaise: asPaise(r.income_paise),
+    expenseCount: Number(r.expense_count),
+    incomeCount: Number(r.income_count),
+    uncategorizedCount: Number(r.uncategorized_count),
+  }
+}
+
+/** One row of `get_monthly_category_totals()`. `categoryId: null` is Uncategorized. */
+export interface MonthlyCategoryTotal {
+  month: YearMonth
+  kind: CategoryKind
+  categoryId: string | null
+  categoryName: string
+  color: string
+  count: number
+  totalPaise: number
+}
+
+export function monthlyCategoryTotalFromRow(
+  r: Database['public']['Functions']['get_monthly_category_totals']['Returns'][number],
+): MonthlyCategoryTotal {
+  return {
+    month: monthOf(r.month),
+    kind: r.kind === 'income' ? 'income' : 'expense',
+    categoryId: (r.category_id as string | null) ?? null,
+    categoryName: r.category_name,
+    color: parseHex(r.category_color),
+    count: Number(r.transaction_count),
+    totalPaise: asPaise(r.total_paise),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Profile (theme and reminder settings, shared with the phone)
+// ---------------------------------------------------------------------------
+
+export interface Profile {
+  theme: string
+  dailyReminderEnabled: boolean
+  /** `HH:MM`, India time. */
+  dailyReminderTime: string
+  billRemindersEnabled: boolean
+  billReminderDaysBefore: number
+}
+
+export function profileFromRow(r: Tables['profiles']['Row']): Profile {
+  return {
+    theme: r.theme,
+    dailyReminderEnabled: r.daily_reminder_enabled,
+    dailyReminderTime: (r.daily_reminder_time ?? '20:30').slice(0, 5),
+    billRemindersEnabled: r.bill_reminders_enabled,
+    billReminderDaysBefore: Number(r.bill_reminder_days_before ?? 3),
+  }
+}
+
+/** `20:30` -> `8:30 pm` */
+export function formatTimeOfDay(hhmm: string): string {
+  const [h = 0, m = 0] = hhmm.split(':').map(Number)
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`
+}
+
+// ---------------------------------------------------------------------------
+// Recurring bills
+// ---------------------------------------------------------------------------
+
+export type BillKind = 'utility' | 'emi'
+export type BillStatus = 'overdue' | 'due_today' | 'due_soon' | 'upcoming'
+
+export const BILL_KINDS: readonly { value: BillKind; label: string; icon: string }[] = [
+  { value: 'utility', label: 'Utility bill', icon: 'receipt_long' },
+  { value: 'emi', label: 'Loan EMI', icon: 'event_repeat' },
+]
+
+/** A bill with its next unpaid due date and status, from `get_bill_schedule()` (computed in Postgres). */
+export interface Bill {
+  id: string
+  name: string
+  kind: BillKind
+  amountPaise: number
+  /** 1–31; months without that day use their last day. */
+  dueDay: number
+  accountId: string
+  categoryId: string | null
+  reminderEnabled: boolean
+  /** The latest month whose bill is settled. */
+  paidThroughMonth: YearMonth
+  /** `yyyy-mm-dd` of the first unpaid month's due date. */
+  nextDueDate: string
+  /** Negative when overdue. */
+  daysUntil: number
+  status: BillStatus
+  /** Unpaid months whose due date has passed. */
+  overdueCount: number
+}
+
+function asBillStatus(v: string): BillStatus {
+  return v === 'overdue' || v === 'due_today' || v === 'due_soon' ? v : 'upcoming'
+}
+
+export function billFromRow(r: Database['public']['Functions']['get_bill_schedule']['Returns'][number]): Bill {
+  return {
+    id: r.id,
+    name: r.name,
+    kind: r.kind === 'emi' ? 'emi' : 'utility',
+    amountPaise: asPaise(r.amount_paise),
+    dueDay: Number(r.due_day),
+    accountId: r.account_id,
+    // The generated type says string, but it is nullable.
+    categoryId: (r.category_id as string | null) ?? null,
+    reminderEnabled: r.reminder_enabled,
+    paidThroughMonth: monthOf(r.paid_through_month),
+    nextDueDate: r.next_due_date,
+    daysUntil: Number(r.days_until),
+    status: asBillStatus(r.status),
+    overdueCount: Number(r.overdue_count),
+  }
+}
+
+/** What the bill form writes. */
+export interface BillDraft {
+  name: string
+  kind: BillKind
+  amountPaise: number
+  dueDay: number
+  accountId: string
+  categoryId: string | null
+  reminderEnabled: boolean
+}
+
+/** Columns sent to Supabase; paid_through_month is filled in by the database on insert. */
+export function billDraftToRow(d: BillDraft) {
+  return {
+    name: d.name.trim(),
+    kind: d.kind,
+    amount_paise: d.amountPaise,
+    due_day: d.dueDay,
+    account_id: d.accountId,
+    category_id: d.categoryId,
+    reminder_enabled: d.reminderEnabled,
+  }
+}
+
+/** Longest bill name the database accepts (`recurring_bills_name_check`). */
+export const BILL_NAME_MAX = 60
+
+/** A `date` column holding a month (its first day). */
+export function monthOfRow(iso: string): YearMonth {
+  return monthOf(iso)
+}
+
+/** What `mark_bill_paid()` did. */
+export interface MarkPaidResult {
+  paidThroughMonth: YearMonth
+  /** The logged expense, if one was asked for and exists. */
+  transactionId: string | null
+  /** The month was already paid (on the phone, or by an earlier retry). */
+  alreadyPaid: boolean
 }

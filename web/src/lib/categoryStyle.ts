@@ -65,12 +65,19 @@ export function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
+/** WCAG contrast ratio between two opaque colours (1 to 21). */
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a)
+  const lb = luminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
 /**
  * White or near-black, whichever has more contrast on `background`; white
  * keeps near-ties (within 10 %, e.g. red #E53935, where both are about
- * 4.4:1). Every palette colour gets a glyph at 4.2:1 or better. (The old
- * rule, white whenever it reached the bare 3:1 minimum, left mid-tones such
- * as green #43A047 at 3.3:1; the phone still uses it.)
+ * 4.4:1). Every palette colour gets a glyph at 4.2:1 or better. The phone
+ * uses the same rule, and /shared/category-style.json lists the result for
+ * every palette colour, which both apps' tests check (DECISIONS.md D20).
  */
 export function foregroundOn(background: string): string {
   const l = luminance(background)
@@ -104,4 +111,42 @@ export function tintOnWhite(hex: string, alpha: number): string {
 export function withAlpha(hex: string, alpha: number): string {
   const [r, g, b] = channels(hex)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/** `hex` darkened 20 % at a time until `ok` holds (at most `steps` times). */
+function darkenUntil(hex: string, ok: (c: string) => boolean, steps: number): string {
+  let out = parseHex(hex)
+  for (let i = 0; i < steps && !ok(out); i++) out = toHex(channels(out).map((c) => c * 0.8) as [number, number, number])
+  return out
+}
+
+/** Below this contrast against a surface it sits on, a filled circle's edge gets lost (yellow on white is 1.4:1). */
+export const CIRCLE_EDGE_MIN_CONTRAST = 1.5
+
+/**
+ * The outline for a filled category circle of `fill` shown on any of
+ * `surfaces` (the theme's white cards, page and highlighted rows), or null
+ * when it stands out from all of them: a darker shade at 3:1 or better
+ * against every surface (DECISIONS.md D20). Same as the phone.
+ */
+export function circleEdgeFor(fill: string, surfaces: readonly string[]): string | null {
+  if (surfaces.every((s) => contrastRatio(fill, s) >= CIRCLE_EDGE_MIN_CONTRAST)) return null
+  return darkenUntil(fill, (c) => surfaces.every((s) => contrastRatio(c, s) >= 3), 8)
+}
+
+/**
+ * Glyph and ring colour of an outlined circle (Uncategorized, Transfer,
+ * Auto): a shade of `color` at 4.5:1 on the circle's 10 % tint over each of
+ * `surfaces`. Same as the phone.
+ */
+export function outlinedInkFor(color: string, surfaces: readonly string[]): string {
+  const tints = surfaces.map((s) => blend(color, 0.1, s))
+  return darkenUntil(color, (c) => tints.every((t) => contrastRatio(c, t) >= 4.5), 8)
+}
+
+/** `hex` at `alpha` opacity over `under`, as a solid colour. */
+export function blend(hex: string, alpha: number, under: string): string {
+  const top = channels(hex)
+  const bottom = channels(under)
+  return toHex(top.map((c, i) => c * alpha + bottom[i]! * (1 - alpha)) as [number, number, number])
 }

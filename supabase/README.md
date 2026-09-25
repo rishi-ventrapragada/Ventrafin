@@ -18,6 +18,7 @@ Never change the schema through the dashboard. Add a new migration instead.
 | `…162343_realtime_categories_profiles` | Publishes `categories` and `profiles` too |
 | `…040030_category_icons` | `categories.icon` (curated Material Symbols keys), a curated palette, distinct built-in colours, and a trigger that fills in the default icon and colour. Backfills existing rows |
 | `…044748_category_builtin_link` | `categories.builtin_name`: a category keeps its built-in keywords when renamed ("Food" → "Khana" still gets Swiggy). Trigger-maintained; the categorizer uses it before the name (DECISIONS.md D18) |
+| `…102935_reports_bills_reminders` | Phases 5–6: `get_monthly_totals` (zero-filled month range), `recurring_bills.paid_through_month` (filled in on insert), `get_bill_schedule` (next due date, status, overdue months), `mark_bill_paid` (settle a month and optionally log the expense, retry-safe), `profiles.daily_reminder_time` and `profiles.bill_reminder_days_before` (DECISIONS.md D21, D23, D24) |
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
 
@@ -39,7 +40,7 @@ The full rules are in the root `CLAUDE.md` ("Database changes via Supabase MCP")
 
 ## Tests (pgTAP, `tests/*.test.sql`)
 
-Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`06`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename.
+Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`07`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders.
 
 - **Normally, via the Supabase MCP (`execute_sql`).** `execute_sql` runs the whole script as one transaction and returns only the last statement's result. So send the file's statements with three changes:
   1. drop `begin;`
@@ -69,6 +70,9 @@ Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`�
 supabase.rpc('get_month_totals')                                   // current month (IST) vs last
 supabase.rpc('get_month_comparison', { p_month: '2026-08-01' })    // per category, any month
 supabase.rpc('get_monthly_category_totals', { p_from_month: '2026-01-01', p_to_month: '2026-09-01' })
+supabase.rpc('get_monthly_totals', { p_from_month: '2026-04-01', p_to_month: '2026-09-01' })   // one row per month, zeros included
+supabase.rpc('get_bill_schedule')                                   // bills with next due date + status
+supabase.rpc('mark_bill_paid', { p_bill_id, p_month: '2026-09-01', p_txn_id })   // p_txn_id: also log the expense
 ```
 ```dart
 supabase.rpc('get_month_comparison', params: {'p_month': '2026-08-01'});

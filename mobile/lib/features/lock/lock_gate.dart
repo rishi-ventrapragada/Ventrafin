@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
+import '../reminders/reminder_sync.dart';
 import 'lock_controller.dart';
 import 'lock_screen.dart';
 
@@ -44,6 +45,8 @@ class _LockGateState extends ConsumerState<LockGate> {
     // Back in the foreground: refresh anything on screen in case Realtime
     // missed events while the app was suspended.
     ref.read(revisionsProvider.notifier).bumpAll();
+    // Notification or alarm permissions may have changed in Android Settings.
+    ref.invalidate(reminderPermissionsProvider);
   }
 
   @override

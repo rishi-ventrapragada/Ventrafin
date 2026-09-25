@@ -1,34 +1,41 @@
 import 'package:flutter/material.dart';
 
-/// The "Ocean" theme (blue / teal), light mode only (PRD § 4.8). The full set
-/// of six themes, shared with the web app via /shared/theme-tokens.json,
-/// arrives in phase 7. Until then these two colours are the only source.
-const Color kOceanPrimary = Color(0xFF1565C0);
-const Color kOceanAccent = Color(0xFF00897B);
+import 'theme_tokens.dart';
 
-/// Semantic colours for amounts.
-const Color kExpenseColor = Color(0xFFC62828);
-const Color kIncomeColor = Color(0xFF2E7D32);
-const Color kTransferColor = Color(0xFF546E7A);
-const Color kUncategorizedColor = Color(0xFFB26A00);
+export 'theme_tokens.dart';
 
-ThemeData buildOceanTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: kOceanPrimary,
-    primary: kOceanPrimary,
-    secondary: kOceanAccent,
-    brightness: Brightness.light,
+/// Light mode only (PRD § 4.8). Six themes, all from /shared/theme-tokens.json
+/// (DECISIONS.md D22):
+///  * the app bar is the theme's `brand` colour with `onBrand` on it;
+///  * buttons, links, switches and selections use `primary`, which is always
+///    dark enough for text on white (the yellow themes' brand isn't);
+///  * cards and sheets are white on the theme's `page` colour, so category
+///    colours sit on the same surfaces in every theme and on both apps.
+ThemeData buildAppTheme(ThemeTokens t) {
+  final scheme = ColorScheme.fromSeed(seedColor: t.primary, brightness: Brightness.light).copyWith(
+    primary: t.primary,
+    onPrimary: Colors.white,
+    primaryContainer: t.primarySoft,
+    onPrimaryContainer: t.primaryHover,
+    secondary: t.accent,
+    onSecondary: t.onAccent,
+    secondaryContainer: t.accentSoft,
+    onSecondaryContainer: const Color(0xFF1F1F1F),
+    surface: t.page,
+    surfaceContainerLowest: kCardColor,
+    surfaceContainerLow: kCardColor,
   );
   return ThemeData(
     colorScheme: scheme,
     useMaterial3: true,
+    scaffoldBackgroundColor: t.page,
+    extensions: [AppPalette(t)],
     // Dense, Excel-like layouts (DECISIONS.md D7), with standard tap targets.
     visualDensity: VisualDensity.compact,
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.primary,
-      foregroundColor: scheme.onPrimary,
-      centerTitle: false,
-    ),
+    appBarTheme: AppBarTheme(backgroundColor: t.brand, foregroundColor: t.onBrand, centerTitle: false),
+    cardTheme: const CardThemeData(color: kCardColor, surfaceTintColor: Colors.transparent),
+    bottomSheetTheme: const BottomSheetThemeData(backgroundColor: kCardColor, surfaceTintColor: Colors.transparent),
+    dialogTheme: const DialogThemeData(backgroundColor: kCardColor, surfaceTintColor: Colors.transparent),
     inputDecorationTheme: const InputDecorationTheme(
       border: OutlineInputBorder(),
       isDense: true,
@@ -37,9 +44,32 @@ ThemeData buildOceanTheme() {
     listTileTheme: const ListTileThemeData(dense: true),
     navigationBarTheme: NavigationBarThemeData(
       height: 64,
-      indicatorColor: scheme.secondaryContainer,
+      backgroundColor: kCardColor,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: t.accentSoft,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
     ),
     snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
   );
+}
+
+/// The Ocean theme, used before the profile has loaded and in tests.
+ThemeData buildOceanTheme() => buildAppTheme(themeTokensFor('ocean'));
+
+/// The current theme's tokens, for the few places that need more than the
+/// ColorScheme (the app bar's colours, the surfaces category circles sit on).
+@immutable
+class AppPalette extends ThemeExtension<AppPalette> {
+  const AppPalette(this.tokens);
+
+  final ThemeTokens tokens;
+
+  static AppPalette of(BuildContext context) =>
+      Theme.of(context).extension<AppPalette>() ?? AppPalette(themeTokensFor(kDefaultThemeId));
+
+  @override
+  AppPalette copyWith({ThemeTokens? tokens}) => AppPalette(tokens ?? this.tokens);
+
+  @override
+  AppPalette lerp(AppPalette? other, double t) => t < 0.5 || other == null ? this : other;
 }

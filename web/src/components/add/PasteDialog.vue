@@ -106,7 +106,7 @@ function problemText(p: ParsedRow) {
           id="paste-box"
           v-model="text"
           rows="3"
-          class="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-sm outline-none focus:border-ocean focus:bg-white"
+          class="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-sm outline-none focus:border-primary focus:bg-white"
           placeholder="Date	Description	Amount	Category	Paid by"
           spellcheck="false"
           data-testid="paste-box"
@@ -138,7 +138,7 @@ function problemText(p: ParsedRow) {
         </div>
 
         <div v-if="noDateColumn" class="text-sm text-slate-600">
-          <AppIcon name="info" :size="18" class="align-[-4px] text-ocean" /> No date column: every row gets today's date
+          <AppIcon name="info" :size="18" class="align-[-4px] text-primary" /> No date column: every row gets today's date
           ({{ formatDateIndian(context.today) }}).
         </div>
         <div v-if="noAmountColumn" class="text-sm text-expense">

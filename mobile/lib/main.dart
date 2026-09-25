@@ -8,6 +8,8 @@ import 'config/app_config.dart';
 import 'data/providers.dart';
 import 'data/secure_session_storage.dart';
 import 'features/lock/lock_controller.dart';
+import 'features/reminders/reminder_notifications.dart';
+import 'features/reminders/reminder_sync.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +33,10 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
 
+  // Local notifications for reminders (phase 6), scheduled in India time.
+  final reminders = LocalReminderNotifications();
+  await reminders.init();
+
   runApp(
     ProviderScope(
       // Show errors immediately with a Retry button instead of silently
@@ -39,6 +45,7 @@ Future<void> main() async {
       overrides: [
         appConfigProvider.overrideWithValue(config),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        reminderNotificationsProvider.overrideWithValue(reminders),
       ],
       child: const VentrafinApp(),
     ),

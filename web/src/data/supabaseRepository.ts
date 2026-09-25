@@ -3,12 +3,20 @@ import { monthStart, nextMonth, type YearMonth } from '@/lib/dates'
 import { AppError, toAppError } from '@/lib/errors'
 import {
   accountFromRow,
+  billDraftToRow,
+  billFromRow,
   categoryFromRow,
   comparisonFromRow,
   draftToRow,
+  monthlyCategoryTotalFromRow,
+  monthlyTotalFromRow,
+  monthOfRow,
   monthTotalsFromRow,
   patchToRow,
+  profileFromRow,
   txnFromRow,
+  type BillDraft,
+  type PaymentMethod,
   type Txn,
   type TxnPatch,
 } from '@/lib/models'
@@ -20,6 +28,7 @@ import {
   type LiveStatus,
   type NewTxn,
 } from './repository'
+import type { Database } from '@/lib/database.types'
 import type { AppSupabaseClient } from './supabaseClient'
 
 type Result<T> = { data: T | null; error: { message: string; code?: string } | null }
@@ -131,6 +140,90 @@ export class SupabaseFinanceRepository implements FinanceRepository {
     )
     if (!row) throw new AppError('Category not found', 'PGRST116')
     return categoryFromRow(row)
+  }
+
+  async fetchMonthlyTotals(from: YearMonth, to: YearMonth) {
+    const rows = await run(this.client.rpc('get_monthly_totals', { p_from_month: monthStart(from), p_to_month: monthStart(to) }))
+    return rows.map(monthlyTotalFromRow)
+  }
+
+  async fetchMonthlyCategoryTotals(from: YearMonth, to: YearMonth) {
+    const rows = await run(
+      this.client.rpc('get_monthly_category_totals', { p_from_month: monthStart(from), p_to_month: monthStart(to) }),
+    )
+    return rows.map(monthlyCategoryTotalFromRow)
+  }
+
+  async fetchProfile(userId: string) {
+    const row = await run(this.client.from('profiles').select('*').eq('id', userId).maybeSingle())
+    if (!row) throw new AppError('Profile not found', 'PGRST116')
+    return profileFromRow(row)
+  }
+
+  async updateProfileTheme(userId: string, theme: string) {
+    await run(this.client.from('profiles').update({ theme }).eq('id', userId).select('id').single())
+  }
+
+  async fetchBills() {
+    const rows = await run(this.client.rpc('get_bill_schedule', {}))
+    return rows.map(billFromRow)
+  }
+
+  async insertBill(id: string, draft: BillDraft) {
+    try {
+      // paid_through_month is filled in by the database (the first month still owed).
+      const row = { id, ...billDraftToRow(draft) } as Database['public']['Tables']['recurring_bills']['Insert']
+      await run(this.client.from('recurring_bills').insert(row))
+    } catch (e) {
+      // An earlier attempt with this id already went through.
+      if (e instanceof AppError && e.code === '23505' && /pkey/.test(e.message)) return
+      throw e
+    }
+  }
+
+  async updateBill(id: string, draft: BillDraft) {
+    await run(this.client.from('recurring_bills').update(billDraftToRow(draft)).eq('id', id).select('id').single())
+  }
+
+  async setBillReminder(id: string, enabled: boolean) {
+    await run(this.client.from('recurring_bills').update({ reminder_enabled: enabled }).eq('id', id).select('id').single())
+  }
+
+  async deleteBill(id: string) {
+    await run(this.client.from('recurring_bills').delete().eq('id', id))
+  }
+
+  async markBillPaid(args: {
+    billId: string
+    month: YearMonth
+    txnId: string | null
+    amountPaise?: number
+    paidOn?: string
+    paymentMethod?: PaymentMethod | null
+  }) {
+    const rows = await run(
+      this.client.rpc('mark_bill_paid', {
+        p_bill_id: args.billId,
+        p_month: monthStart(args.month),
+        ...(args.txnId ? { p_txn_id: args.txnId } : {}),
+        ...(args.amountPaise !== undefined ? { p_amount_paise: args.amountPaise } : {}),
+        ...(args.paidOn ? { p_paid_on: args.paidOn } : {}),
+        ...(args.paymentMethod ? { p_payment_method: args.paymentMethod } : {}),
+      }),
+    )
+    const r = rows[0]
+    if (!r) throw new AppError('mark_bill_paid returned no row')
+    return {
+      paidThroughMonth: monthOfRow(r.paid_through_month),
+      transactionId: (r.transaction_id as string | null) ?? null,
+      alreadyPaid: r.already_paid,
+    }
+  }
+
+  async setBillPaidThrough(id: string, month: YearMonth) {
+    await run(
+      this.client.from('recurring_bills').update({ paid_through_month: monthStart(month) }).eq('id', id).select('id').single(),
+    )
   }
 
   watchChanges(userId: string, onChange: (c: DataChange) => void, onStatus: (s: LiveStatus) => void) {

@@ -5,7 +5,7 @@
 import { computed } from 'vue'
 import { TRANSFER_LOOK, UNCATEGORIZED_LOOK, categoryIconKey } from '@/lib/categoryStyle'
 import type { Category } from '@/lib/models'
-import { OCEAN_PRIMARY } from '@/lib/theme'
+import { activeTheme } from '@/lib/theme'
 import IconCircle from './IconCircle.vue'
 
 const props = withDefaults(
@@ -25,7 +25,7 @@ const look = computed(() => {
     case 'transfer':
       return { icon: TRANSFER_LOOK.icon, color: TRANSFER_LOOK.color, outlined: true, label: 'Transfer' }
     case 'auto':
-      return { icon: 'auto_awesome', color: OCEAN_PRIMARY, outlined: true, label: 'Auto category' }
+      return { icon: 'auto_awesome', color: activeTheme.value.primary, outlined: true, label: 'Auto category' }
     default: {
       const c = props.category
       // Category row not loaded yet (e.g. just auto-created): neutral circle.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ventrafin/core/india_time.dart';
@@ -122,7 +123,86 @@ class FakeRepository implements FinanceRepository {
   Future<Txn> updateTransaction(String id, TxnDraft draft) => throw UnimplementedError();
 
   @override
-  Future<void> deleteTransaction(String id) => throw UnimplementedError();
+  Future<void> deleteTransaction(String id) async => deletedTxnIds.add(id);
+
+  /// What fetchMonthlyTotals / fetchMonthlyCategoryTotals return.
+  List<MonthlyTotal> monthlyTotals = const [];
+  List<MonthlyCategoryTotal> monthlyCategoryTotals = const [];
+  final monthlyRanges = <(YearMonth, YearMonth)>[];
+
+  @override
+  Future<List<MonthlyTotal>> fetchMonthlyTotals(YearMonth from, YearMonth to) async {
+    monthlyRanges.add((from, to));
+    return monthlyTotals;
+  }
+
+  @override
+  Future<List<MonthlyCategoryTotal>> fetchMonthlyCategoryTotals(YearMonth from, YearMonth to) async =>
+      monthlyCategoryTotals;
+
+  Profile profile = const Profile(
+    theme: 'ocean',
+    dailyReminderEnabled: true,
+    dailyReminderTime: kDefaultDailyReminderTime,
+    billRemindersEnabled: true,
+    billReminderDaysBefore: kDefaultBillReminderDaysBefore,
+  );
+  final profileUpdates = <ProfilePatch>[];
+  Object? failNextProfileUpdateWith;
+
+  @override
+  Future<Profile> fetchProfile() async => profile;
+
+  @override
+  Future<void> updateProfile(ProfilePatch patch) async {
+    final failure = failNextProfileUpdateWith;
+    if (failure != null) {
+      failNextProfileUpdateWith = null;
+      throw failure;
+    }
+    profileUpdates.add(patch);
+    profile = patch.applyTo(profile);
+  }
+
+  List<Bill> bills = const [];
+  final billInserts = <({String id, BillDraft draft})>[];
+  final billUpdates = <({String id, BillDraft draft})>[];
+  final billDeletes = <String>[];
+  final reminderToggles = <({String id, bool enabled})>[];
+  final paidCalls = <({String billId, YearMonth month, String? txnId, PaymentMethod? method, int? amountPaise})>[];
+  final paidThroughSets = <({String id, YearMonth month})>[];
+  final deletedTxnIds = <String>[];
+
+  @override
+  Future<List<Bill>> fetchBills() async => bills;
+
+  @override
+  Future<void> insertBill(String id, BillDraft draft) async => billInserts.add((id: id, draft: draft));
+
+  @override
+  Future<void> updateBill(String id, BillDraft draft) async => billUpdates.add((id: id, draft: draft));
+
+  @override
+  Future<void> setBillReminder(String id, bool enabled) async => reminderToggles.add((id: id, enabled: enabled));
+
+  @override
+  Future<void> deleteBill(String id) async => billDeletes.add(id);
+
+  @override
+  Future<MarkPaidResult> markBillPaid({
+    required String billId,
+    required YearMonth month,
+    String? txnId,
+    int? amountPaise,
+    DateTime? paidOn,
+    PaymentMethod? paymentMethod,
+  }) async {
+    paidCalls.add((billId: billId, month: month, txnId: txnId, method: paymentMethod, amountPaise: amountPaise));
+    return MarkPaidResult(paidThroughMonth: month, transactionId: txnId, alreadyPaid: false);
+  }
+
+  @override
+  Future<void> setBillPaidThrough(String id, YearMonth month) async => paidThroughSets.add((id: id, month: month));
 
   @override
   Stream<DataChange> watchChanges() => const Stream.empty();
@@ -165,6 +245,8 @@ Future<(FakeRepository, SharedPreferences)> pumpWithFakes(
   Map<String, Object> prefs = const {},
   bool online = true,
   Size surfaceSize = const Size(412, 915),
+  List<Override> overrides = const [],
+  ThemeData? theme,
 }) async {
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -180,8 +262,9 @@ Future<(FakeRepository, SharedPreferences)> pumpWithFakes(
         currentUserIdProvider.overrideWithValue('user-1'),
         clockProvider.overrideWithValue(() => fixedClock),
         isOnlineProvider.overrideWithValue(online),
+        ...overrides,
       ],
-      child: MaterialApp(theme: buildOceanTheme(), home: home),
+      child: MaterialApp(theme: theme ?? buildOceanTheme(), home: home),
     ),
   );
   await tester.pumpAndSettle();

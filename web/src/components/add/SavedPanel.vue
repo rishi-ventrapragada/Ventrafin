@@ -35,7 +35,7 @@ const autoCount = computed(() => props.saved.filter((t) => t.autoCategorized).le
       <span v-if="autoCount" class="text-sm text-slate-600">
         · {{ autoCount }} categorized automatically (change any in Transactions; Ventrafin learns from it)
       </span>
-      <RouterLink to="/transactions" class="ml-auto text-sm font-medium text-ocean hover:underline">Open Transactions</RouterLink>
+      <RouterLink to="/transactions" class="ml-auto text-sm font-medium text-primary hover:underline">Open Transactions</RouterLink>
     </header>
     <div class="max-h-80 overflow-auto">
       <table class="dense-table">

@@ -94,6 +94,19 @@ const outlined = [
   'clear_all',
   'open_in_new',
   'expand_more',
+  // Bills, reminders, reports, themes (increment 4)
+  'schedule',
+  'event',
+  'notifications',
+  'notifications_active',
+  'notifications_off',
+  'task_alt',
+  'undo',
+  'alarm',
+  'table_chart',
+  'trending_up',
+  'radio_button_checked',
+  'radio_button_unchecked',
 ]
 
 // Keys are Material Icons names (what the database stores and Flutter draws).
