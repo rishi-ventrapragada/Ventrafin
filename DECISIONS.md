@@ -290,7 +290,7 @@ Two related rules, also on both apps:
 
 **Why a new function:** a trend needs every month in the range, including months with nothing in them, and per-month income, spending, net and entry counts. Summing category rows and filling gaps in each client would be the kind of duplicated computation `CLAUDE.md` keeps in Postgres. It is capped at 120 months per call.
 
-**Shape of the screens** (both apps): a month picker drives everything; the trends cover 6 or 12 months **ending with the chosen month**, so looking at an old month shows the months before it. The category trend chart shows the five largest categories over the range plus "Other" (grey `#B0BEC5`, not a palette colour); the table under it lists every category. Charts always sit next to a table with the same numbers (D7). The web draws its charts as SVG itself (no chart library: nothing extra to load, same CSP, testable in jsdom).
+**Shape of the screens** (both apps): a month picker drives everything; the trends cover 6 or 12 months **ending with the chosen month**, so looking at an old month shows the months before it. The category trend chart shows the five largest categories over the range plus "Other" (grey `#7F8C93`, not a palette colour; it was `#B0BEC5` until audit round 2 (REP-3), which was only 1.9:1 on the white card); the table under it lists every category. Charts always sit next to a table with the same numbers (D7). The web draws its charts as SVG itself (no chart library: nothing extra to load, same CSP, testable in jsdom).
 
 ---
 
@@ -315,7 +315,7 @@ Two related rules, also on both apps:
 
 **Decision:** "overdue" needs to know whether a bill was paid. Each bill stores `paid_through_month`; the next bill due is in the month after it. **Mark paid** moves it forward one month (or to any later month), optionally logging the payment as an expense in the same database call (`mark_bill_paid`).
 - When a bill is added, the database decides the first month owed: this month if its due date hasn't passed yet, otherwise next month. (Adding a bill on 25 Sep with due day 10 doesn't make it instantly overdue.)
-- Due dates clamp to short months (due day 31 is 30 April, 28/29 February), computed in SQL (`private.bill_due_date`); the phone repeats the same rule only to schedule reminders for later months, and tests pin both to the same examples.
+- Due dates clamp to short months (due day 31 is 30 April, 28/29 February), computed in SQL (`private.bill_due_date`). The phone schedules reminders for later months from `get_bill_schedule`'s `upcoming_due_dates`, so it doesn't repeat the rule (audit round 2, CODE-2; until then it had a Dart copy pinned to the same test examples).
 - Status: overdue / due today / due within 7 days / upcoming, computed in `get_bill_schedule`.
 - `mark_bill_paid` is idempotent per month: marking an already-paid month changes nothing and logs no second expense, so a retry after a lost response, or marking the same bill paid on both apps, can't double-count. The logged expense uses a client-generated id.
 - Undo moves the month back. The phone's Undo, right after marking, also deletes the expense it just logged. "Mark unpaid" later (either app) leaves Transactions alone and says so.

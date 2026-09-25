@@ -22,6 +22,7 @@ Never change the schema through the dashboard. Add a new migration instead.
 | `…142716_transactions_csv_export` | Phase 7: `export_transactions_csv(from, to, ids)` returns the CSV file both apps save (one text value; formula-guarded cells) (DECISIONS.md D25) |
 | `…142724_backup_reader_role` | Phase 7: `ventrafin_backup`, the read-only login for the weekly backup (SELECT on public tables, BYPASSRLS, read-only transactions, no password in the repo) (DECISIONS.md D27) |
 | `…_audit_round_1` | Audit round 1: `accounts.archived` (archive instead of delete; the last active account can't be archived), `ventrafin_backup` NOLOGIN while backups are off (D28), no PUBLIC execute on `private` functions, no default privileges for `anon` on future public objects (AUDIT.md FIX-4, DB-2…DB-5) |
+| `…_audit_round_2` | Audit round 2: `get_bill_schedule` also returns `upcoming_due_dates` (next three due dates, so the phone no longer repeats the clamping rule); `get_account_totals(p_month)` per account (AUDIT.md CODE-2, CAT-1) |
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
 
@@ -47,7 +48,7 @@ The full rules are in the root `CLAUDE.md` ("Database changes via Supabase MCP")
 
 ## Tests (pgTAP, `tests/*.test.sql`)
 
-Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`10`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders, CSV export, backup role, audit round 1 (archiving accounts and categories, private-function and `anon` default privileges).
+Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`11`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders, CSV export, backup role, audit round 1 (archiving accounts and categories, private-function and `anon` default privileges), audit round 2 (upcoming due dates, account totals).
 
 Every test inserts test users into `auth.users`, so the tests **cannot run through the read-only MCP**.
 
@@ -81,7 +82,8 @@ supabase.rpc('get_month_totals')                                   // current mo
 supabase.rpc('get_month_comparison', { p_month: '2026-08-01' })    // per category, any month
 supabase.rpc('get_monthly_category_totals', { p_from_month: '2026-01-01', p_to_month: '2026-09-01' })
 supabase.rpc('get_monthly_totals', { p_from_month: '2026-04-01', p_to_month: '2026-09-01' })   // one row per month, zeros included
-supabase.rpc('get_bill_schedule')                                   // bills with next due date + status
+supabase.rpc('get_bill_schedule')                                   // bills with next due date, status, next three due dates
+supabase.rpc('get_account_totals', { p_month: '2026-09-01' })        // per account: spent, income, transfers, entries
 supabase.rpc('mark_bill_paid', { p_bill_id, p_month: '2026-09-01', p_txn_id })   // p_txn_id: also log the expense
 supabase.rpc('export_transactions_csv', { p_from: '2026-04-01', p_to: '2027-03-31' })   // the CSV file as text; omit both for all time
 ```
