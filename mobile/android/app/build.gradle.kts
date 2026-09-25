@@ -8,10 +8,10 @@ plugins {
 
 // Release signing. The keystore and its passwords live in android/key.properties,
 // which is gitignored (as are *.jks / *.keystore) and must never be committed.
-// Without key.properties, release builds fall back to the debug key so that
-// `flutter build apk --release` still works for local testing. Such an APK
-// can't be updated by a properly signed one later, and Google Sign-In only
-// works for it if the DEBUG SHA-1 is registered.
+// Without key.properties a release build FAILS (see the check at the end of
+// this file); it never falls back to the debug key. A debug-signed APK on
+// Dad's phone could not be updated by a properly signed one without an
+// uninstall, which would also lose his lock pattern. Debug builds are unaffected.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
@@ -54,10 +54,8 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
@@ -77,4 +75,15 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+// Refuse to build a release without the release keystore (never sign it with the debug key).
+gradle.taskGraph.whenReady {
+    val releaseTask = allTasks.any { it.project == project && it.name.contains("Release") }
+    if (releaseTask && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "Release builds need android/key.properties (the release keystore). " +
+                "It is missing, so the build stops instead of signing with the debug key."
+        )
+    }
 }

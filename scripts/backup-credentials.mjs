@@ -86,9 +86,10 @@ const passphrase = randomText(48)
 console.log(`
 === 1. Run this once in the Supabase SQL editor (project ${ref}) ===
 
-alter role ${ROLE} with password '${scramVerifier(password)}';
+alter role ${ROLE} with login password '${scramVerifier(password)}';
 
-(It stores a salted hash; the password below is not in it.)
+(It stores a salted hash; the password below is not in it. LOGIN is switched
+off while backups are off, so this also lets the role log in again.)
 
 === 2. GitHub: repo > Settings > Secrets and variables > Actions > New repository secret ===
 

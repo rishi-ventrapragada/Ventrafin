@@ -21,12 +21,15 @@ Never change the schema through the dashboard. Add a new migration instead.
 | `…102935_reports_bills_reminders` | Phases 5–6: `get_monthly_totals` (zero-filled month range), `recurring_bills.paid_through_month` (filled in on insert), `get_bill_schedule` (next due date, status, overdue months), `mark_bill_paid` (settle a month and optionally log the expense, retry-safe), `profiles.daily_reminder_time` and `profiles.bill_reminder_days_before` (DECISIONS.md D21, D23, D24) |
 | `…142716_transactions_csv_export` | Phase 7: `export_transactions_csv(from, to, ids)` returns the CSV file both apps save (one text value; formula-guarded cells) (DECISIONS.md D25) |
 | `…142724_backup_reader_role` | Phase 7: `ventrafin_backup`, the read-only login for the weekly backup (SELECT on public tables, BYPASSRLS, read-only transactions, no password in the repo) (DECISIONS.md D27) |
+| `…_audit_round_1` | Audit round 1: `accounts.archived` (archive instead of delete; the last active account can't be archived), `ventrafin_backup` NOLOGIN while backups are off (D28), no PUBLIC execute on `private` functions, no default privileges for `anon` on future public objects (AUDIT.md FIX-4, DB-2…DB-5) |
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
 
 **Backups** (weekly, encrypted, via GitHub Actions) are built but **switched off for now** (DECISIONS.md D28). Turning them on, checking them and restoring are in [`BACKUPS.md`](BACKUPS.md).
 
 ## Applying changes (Supabase MCP, not the CLI)
+
+The MCP connection is **read-only** while Dad uses the app (`.mcp.json`). A migration is written and pushed on its branch first; the human switches write access on for the apply, then off again.
 
 1. Write a new file `migrations/<YYYYMMDDHHMMSS>_<name>.sql`.
 2. Apply it with the MCP `apply_migration` tool, using the file's exact contents and the same `<name>`.
@@ -44,9 +47,19 @@ The full rules are in the root `CLAUDE.md` ("Database changes via Supabase MCP")
 
 ## Tests (pgTAP, `tests/*.test.sql`)
 
-Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`09`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders, CSV export, backup role.
+Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`–`10`: structure, signup seeding, RLS isolation, auto-categorization, reporting, category style, category rename, reports/bills/reminders, CSV export, backup role, audit round 1 (archiving accounts and categories, private-function and `anon` default privileges).
 
-- **Normally, via the Supabase MCP (`execute_sql`).** `execute_sql` runs the whole script as one transaction and returns only the last statement's result. So send the file's statements with three changes:
+Every test inserts test users into `auth.users`, so the tests **cannot run through the read-only MCP**.
+
+- **Normally, from a terminal: `npm run db:test`** (repo root; `npm install` once for the `pg` driver). Set the connection string for this terminal only, run, then clear it:
+  ```powershell
+  $env:SUPABASE_DB_URL = "postgresql://postgres.<project-ref>:<db-password>@<pooler-host>:5432/postgres"
+  npm run db:test                      # every file
+  npm run db:test -- 10_audit_round_1  # one file (any part of its name)
+  Remove-Item Env:SUPABASE_DB_URL
+  ```
+  Get the string from Dashboard → **Connect** → *Session pooler* (the direct host is IPv6-only on the free plan). Percent-encode any special characters in the password. Never put the string in a file. The runner prints each file's TAP lines and a pass/fail summary, and exits non-zero on any failure.
+- **Via the Supabase MCP (`execute_sql`), only while write access is switched on** (e.g. right after applying a migration). `execute_sql` runs the whole script as one transaction and returns only the last statement's result. So send the file's statements with three changes:
   1. drop `begin;`
   2. drop the `create extension … pgtap` line (a migration already installed it)
   3. replace `select * from finish(); rollback;` with the block below.
@@ -59,14 +72,7 @@ Every file runs inside `BEGIN … ROLLBACK`, so it leaves nothing behind. `00`�
   end
   $tap$;
   ```
-  The call always "fails" with that message. The error carries the result and guarantees the rollback. A pass reads `planned=N ran=N failed=0`. If a file shows failures, run it from a terminal (below) to see which assertions failed.
-- **Optional, from a terminal:** set the connection string for this terminal only, then run `npm run db:test`:
-  ```powershell
-  $env:SUPABASE_DB_URL = "postgresql://postgres.<project-ref>:<db-password>@<pooler-host>:5432/postgres"
-  npm run db:test
-  Remove-Item Env:SUPABASE_DB_URL
-  ```
-  Get the string from Dashboard → **Connect** → *Session pooler*. Percent-encode any special characters in the password.
+  The call always "fails" with that message. The error carries the result and guarantees the rollback. A pass reads `planned=N ran=N failed=0`. If a file shows failures, run it with `npm run db:test` to see which assertions failed.
 
 ## Calling the reports from the apps
 

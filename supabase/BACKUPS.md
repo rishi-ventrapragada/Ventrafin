@@ -1,7 +1,7 @@
 # Backups: setup, checking, restoring
 
-> **Switched off for now** (`DECISIONS.md` D28). The workflow has no schedule, and the secrets and the role's password
-> were never set up, so no backups are being made. To turn it on, do the one-time setup below, then put back the
+> **Switched off for now** (`DECISIONS.md` D28). The workflow has no schedule, the secrets and the role's password
+> were never set up, and the `ventrafin_backup` role is NOLOGIN (migration `…_audit_round_1`), so no backups are being made. To turn it on, do the one-time setup below, then put back the
 > commented `schedule:` lines in `.github/workflows/backup.yml` and run it once by hand.
 
 Supabase's free plan keeps no backups, and Ventrafin has no server of its own. A GitHub Actions workflow
@@ -31,8 +31,9 @@ Everything the workflow needs lives in two **GitHub Actions secrets**. Nothing i
    node scripts/backup-credentials.mjs "<the string you copied>"
    ```
    The script prints three things. It saves nothing and sends nothing anywhere.
-   - an `alter role ventrafin_backup with password 'SCRAM-SHA-256$…';` statement. This sets a hash of the password, so
-     the password itself never shows up in the SQL editor's history or the database logs;
+   - an `alter role ventrafin_backup with login password 'SCRAM-SHA-256$…';` statement. It lets the role log in again
+     (it is NOLOGIN while backups are off) and sets a hash of the password, so the password itself never shows up in
+     the SQL editor's history or the database logs;
    - the `BACKUP_DB_URL` value, with a new random password for the read-only role;
    - a new random `BACKUP_PASSPHRASE`.
 3. **Set the role's password.** In the dashboard open **SQL Editor**, paste the `alter role …` line and click **Run**.

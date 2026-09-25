@@ -10,8 +10,8 @@ select has_role('ventrafin_backup', 'the backup role exists');
 select results_eq(
   $$ select rolcanlogin, rolbypassrls, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolinherit, rolconnlimit
      from pg_roles where rolname = 'ventrafin_backup' $$,
-  $$ values (true, true, false, false, false, false, false, 2) $$,
-  'login + bypassrls only: not superuser, cannot create roles or databases, no replication, 2 connections at most'
+  $$ values (false, true, false, false, false, false, false, 2) $$,
+  'bypassrls only, and NOLOGIN while backups are off (D28): not superuser, cannot create roles or databases, no replication, 2 connections at most'
 );
 
 select is(
