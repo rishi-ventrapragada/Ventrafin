@@ -81,7 +81,7 @@ Claude handles git itself: commit and push after finishing each increment or fix
 | Web lock | Google session; Windows Hello via Supabase passkeys is a later addition |
 | Charts | `fl_chart` (mobile), Chart.js or similar (web) |
 | Notifications | `flutter_local_notifications` (Android only — web has no reminder push) |
-| Hosting | Vercel (static site) |
+| Hosting | Vercel (static site), project `ventrafin` under the `rishiventra` account. Deploys via Vercel CLI (one-time `vercel login`) plus GitHub auto-deploy on push to `main`. Root Directory is `web`, so run `vercel` from the repo root, not from `/web`; `.vercelignore` keeps uploads to `web/` + `shared/` |
 
 ## When something is ambiguous
 

@@ -1,0 +1,9 @@
+# Vercel CLI uploads (vercel deploy). The project's Root Directory is web/,
+# so only web/ (plus the shared/ files it imports) is needed; never upload local env files or build output.
+/*
+!/web
+!/shared
+web/.env*
+!web/.env.example
+web/node_modules
+web/dist
