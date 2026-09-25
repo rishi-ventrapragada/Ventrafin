@@ -2,7 +2,7 @@
 // Rounded-square letter badge for the merchant in a description (D14).
 // Renders nothing when the description names no merchant.
 import { computed } from 'vue'
-import { readableTextColor, withAlpha } from '@/lib/categoryStyle'
+import { readableTextColor, tintOnWhite, withAlpha } from '@/lib/categoryStyle'
 import { merchantBadgeFor } from '@/lib/merchant'
 
 const props = withDefaults(defineProps<{ description: string; size?: number }>(), { size: 16 })
@@ -18,7 +18,8 @@ const style = computed(() => {
     borderRadius: `${props.size * 0.25}px`,
     background: withAlpha(b.color, 0.18),
     border: `0.8px solid ${withAlpha(b.color, 0.6)}`,
-    color: readableTextColor(b.color),
+    // Readable on the badge's own tint, not just on white.
+    color: readableTextColor(b.color, tintOnWhite(b.color, 0.18)),
   }
 })
 </script>

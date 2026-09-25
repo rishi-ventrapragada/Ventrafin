@@ -72,11 +72,11 @@ function place() {
   if (!el) return
   const r = el.getBoundingClientRect()
   const below = window.innerHeight - r.bottom
-  const up = below < 220 && r.top > below
+  const up = below < 280 && r.top > below
   popupStyle.value = {
     position: 'fixed',
     left: `${Math.round(r.left)}px`,
-    minWidth: `${Math.max(180, Math.round(r.width))}px`,
+    minWidth: `${Math.max(210, Math.round(r.width))}px`,
     ...(up ? { bottom: `${Math.round(window.innerHeight - r.top + 2)}px` } : { top: `${Math.round(r.bottom + 2)}px` }),
   }
 }
@@ -231,10 +231,12 @@ defineExpose({ focus: () => input.value?.focus(), input })
     :class="{ 'opacity-50': disabled }"
   >
     <slot name="prefix" />
+    <!-- size="1": fills the cell (flex-1) without widening a table column when it opens. -->
     <input
       ref="input"
       type="text"
       role="combobox"
+      size="1"
       autocomplete="off"
       spellcheck="false"
       class="h-full min-w-0 flex-1 bg-transparent outline-none"
@@ -257,11 +259,11 @@ defineExpose({ focus: () => input.value?.focus(), input })
       v-if="!disabled"
       type="button"
       tabindex="-1"
-      class="shrink-0 rounded text-slate-400 hover:text-slate-700"
+      class="shrink-0 rounded text-slate-500 hover:text-slate-800"
       aria-label="Show choices"
       @mousedown="toggleFromButton"
     >
-      <AppIcon name="expand_more" :size="16" />
+      <AppIcon name="expand_more" :size="19" />
     </button>
     <Teleport to="body">
       <ul
@@ -269,7 +271,7 @@ defineExpose({ focus: () => input.value?.focus(), input })
         :id="listId"
         role="listbox"
         data-pc-section="overlay"
-        class="z-[2000] max-h-64 overflow-auto rounded-md border border-slate-300 bg-white py-1 text-[0.93rem] shadow-lg"
+        class="z-[2000] max-h-72 overflow-auto rounded-md border border-slate-300 bg-white py-1 text-dense shadow-lg"
         :style="popupStyle"
       >
         <li
@@ -279,12 +281,12 @@ defineExpose({ focus: () => input.value?.focus(), input })
           role="option"
           :aria-selected="i === highlight"
           class="flex cursor-pointer items-center gap-2 px-2.5 py-1 whitespace-nowrap"
-          :class="i === highlight ? 'bg-blue-50 text-slate-900' : 'text-slate-700'"
+          :class="i === highlight ? 'bg-blue-50 text-slate-900' : 'text-slate-800'"
           @mousedown="onOptionDown($event, option)"
           @mousemove="highlight = i"
         >
           <slot name="option" :option="option">{{ option.label }}</slot>
-          <span v-if="option.hint" class="ml-auto pl-3 text-xs text-slate-400">{{ option.hint }}</span>
+          <span v-if="option.hint" class="ml-auto pl-3 text-sm text-slate-600">{{ option.hint }}</span>
         </li>
       </ul>
     </Teleport>

@@ -299,20 +299,20 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
     <div class="flex items-start gap-4">
       <div class="min-w-0 flex-1">
         <h1 class="text-xl font-semibold text-slate-800">Add transactions</h1>
-        <p class="text-sm text-slate-500">
+        <p class="text-sm text-slate-600">
           Fill in the rows like a spreadsheet, or paste rows copied from Excel. Category is optional: leave it on
           <strong>Auto</strong> and Ventrafin picks one from the description.
         </p>
       </div>
       <div class="flex shrink-0 flex-wrap justify-end gap-2">
       <Button label="Paste from Excel" severity="secondary" outlined data-testid="open-paste" @click="openPaste()">
-        <template #icon><AppIcon name="content_paste" :size="17" /></template>
+        <template #icon><AppIcon name="content_paste" :size="20" /></template>
       </Button>
       <Button label="Add 5 rows" severity="secondary" outlined @click="addRows(5)">
-        <template #icon><AppIcon name="playlist_add" :size="17" /></template>
+        <template #icon><AppIcon name="playlist_add" :size="20" /></template>
       </Button>
       <Button label="Clear" severity="secondary" text @click="clearUnsaved">
-        <template #icon><AppIcon name="clear_all" :size="17" /></template>
+        <template #icon><AppIcon name="clear_all" :size="20" /></template>
       </Button>
       <Button
         :label="readyCount ? `Save ${readyCount} row${readyCount === 1 ? '' : 's'}` : 'Save'"
@@ -320,7 +320,7 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
         data-testid="save-rows"
         @click="save()"
       >
-        <template #icon><AppIcon name="check" :size="17" /></template>
+        <template #icon><AppIcon name="check" :size="20" /></template>
       </Button>
       </div>
     </div>
@@ -330,7 +330,7 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
       class="card flex items-center gap-3 p-4 text-slate-700"
       role="alert"
     >
-      <AppIcon name="cloud_off" :size="28" class="text-expense" />
+      <AppIcon name="cloud_off" :size="32" class="text-expense" />
       <span>Couldn't load your accounts. {{ describeError(app.accounts.error.value) }}</span>
       <Button label="Retry" size="small" @click="app.accounts.refresh()" />
     </div>
@@ -351,7 +351,7 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
       @save="saveFromGrid"
     />
 
-    <div class="flex flex-wrap items-start gap-x-6 gap-y-1 text-xs text-slate-500">
+    <div class="flex flex-wrap items-start gap-x-6 gap-y-1 text-sm text-slate-600">
       <span><kbd>Tab</kbd> next cell</span>
       <span><kbd>Enter</kbd> next row</span>
       <span><kbd>Ctrl</kbd>+<kbd>D</kbd> copy from the row above</span>
@@ -377,7 +377,7 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
             }}
           </button>
         </li>
-        <li v-if="problemRows.length > 8" class="text-slate-500">…and {{ problemRows.length - 8 }} more</li>
+        <li v-if="problemRows.length > 8" class="text-slate-600">…and {{ problemRows.length - 8 }} more</li>
       </ul>
     </div>
 
@@ -403,7 +403,7 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
       data-testid="save-failed"
     >
       <div class="flex gap-3">
-        <AppIcon name="error" filled :size="28" class="text-expense" />
+        <AppIcon name="error" filled :size="32" class="text-expense" />
         <div>
           <p>{{ failure }}</p>
           <p class="mt-2 text-slate-600">Your rows are still in the grid. Nothing was lost; try saving again.</p>
@@ -414,7 +414,7 @@ onMounted(() => void grid.value?.focusCell(0, ENTRY_FIELDS.indexOf('description'
       </template>
     </Dialog>
 
-    <p v-if="sessionSaved.length === 0" class="text-xs text-slate-400">
+    <p v-if="sessionSaved.length === 0" class="text-sm text-slate-600">
       Saved rows leave the grid and appear here, with the category each one got.
     </p>
   </div>

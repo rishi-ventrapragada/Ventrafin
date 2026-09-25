@@ -66,25 +66,38 @@ export function luminance(hex: string): number {
 }
 
 /**
- * White or near-black, whichever reads better on `background`. White wins
- * whenever it reaches the 3:1 contrast WCAG asks of icons, so most circles
- * get white glyphs; pale ones (yellow, peach, sky) get dark glyphs.
+ * White or near-black, whichever has more contrast on `background`; white
+ * keeps near-ties (within 10 %, e.g. red #E53935, where both are about
+ * 4.4:1). Every palette colour gets a glyph at 4.2:1 or better. (The old
+ * rule, white whenever it reached the bare 3:1 minimum, left mid-tones such
+ * as green #43A047 at 3.3:1; the phone still uses it.)
  */
 export function foregroundOn(background: string): string {
-  const whiteContrast = 1.05 / (luminance(background) + 0.05)
-  return whiteContrast >= 3 ? '#FFFFFF' : 'rgba(0, 0, 0, 0.87)'
+  const l = luminance(background)
+  const whiteContrast = 1.05 / (l + 0.05)
+  // The dark glyph is 87 % black over the circle's colour.
+  const dark = luminance(toHex(channels(background).map((c) => c * 0.13) as [number, number, number]))
+  const darkContrast = (l + 0.05) / (dark + 0.05)
+  return whiteContrast * 1.1 >= darkContrast ? '#FFFFFF' : 'rgba(0, 0, 0, 0.87)'
 }
 
 /**
  * A darker shade of `hex` for text written in a category's colour on a
- * light surface (pale palette colours are unreadable as text otherwise).
+ * light surface (pale palette colours are unreadable as text otherwise):
+ * 4.5:1 or better on `surface` (white unless given).
  */
-export function readableTextColor(hex: string): string {
+export function readableTextColor(hex: string, surface = '#FFFFFF'): string {
+  const onSurface = luminance(surface) + 0.05
   let out = channels(hex)
-  for (let i = 0; i < 6 && 1.05 / (luminance(toHex(out)) + 0.05) < 4.5; i++) {
+  for (let i = 0; i < 6 && onSurface / (luminance(toHex(out)) + 0.05) < 4.5; i++) {
     out = out.map((c) => c * 0.8) as [number, number, number]
   }
   return toHex(out)
+}
+
+/** `hex` at `alpha` opacity over white, as a solid colour. */
+export function tintOnWhite(hex: string, alpha: number): string {
+  return toHex(channels(hex).map((c) => c * alpha + 255 * (1 - alpha)) as [number, number, number])
 }
 
 /** `hex` at `alpha` opacity, for tinted backgrounds and borders. */

@@ -15,7 +15,7 @@ const app = useApp()
     data-testid="offline-banner"
     class="flex items-center gap-2 bg-[#b3261e] px-4 py-1.5 text-sm text-white"
   >
-    <AppIcon name="wifi_off" :size="18" />
+    <AppIcon name="wifi_off" :size="21" />
     No internet connection. Entries can't be saved or loaded until you're back online.
   </div>
 </template>

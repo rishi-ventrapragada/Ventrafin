@@ -312,13 +312,13 @@ function rowClass(t: Row) {
       <h1 class="mr-1 text-xl font-semibold text-slate-800">Transactions</h1>
       <MonthSwitcher v-model="month" :max="currentMonth" />
       <span class="relative">
-        <AppIcon name="search" :size="17" class="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-slate-400" />
+        <AppIcon name="search" :size="20" class="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-slate-500" />
         <input
           v-model="search"
           type="search"
           placeholder="Search descriptions"
           aria-label="Search descriptions"
-          class="h-[2.35rem] w-52 rounded-md border border-slate-300 bg-white pr-2 pl-8 outline-none focus:border-ocean"
+          class="h-[2.35rem] w-52 rounded-md border border-slate-300 bg-white pr-2 pl-8 outline-none placeholder:text-slate-500 focus:border-ocean"
           data-testid="search"
         />
       </span>
@@ -333,8 +333,8 @@ function rowClass(t: Row) {
       >
         <template #option="{ option }">
           <span class="flex items-center gap-2">
-            <AccountAvatar v-if="option.type" :type="option.type" :size="20" />
-            <AppIcon v-else name="account_balance_wallet" :size="18" class="text-slate-400" />{{ option.label }}
+            <AccountAvatar v-if="option.type" :type="option.type" :size="24" />
+            <AppIcon v-else name="account_balance_wallet" :size="22" class="text-slate-500" />{{ option.label }}
           </span>
         </template>
       </Select>
@@ -351,17 +351,17 @@ function rowClass(t: Row) {
       >
         <template #option="{ option }">
           <span class="flex items-center gap-2">
-            <TxnAvatar v-if="option.kind === 'category'" :category="option.category" :size="20" />
-            <TxnAvatar v-else-if="option.kind === 'uncategorized'" kind="uncategorized" :size="20" />
-            <TxnAvatar v-else-if="option.kind === 'transfer'" kind="transfer" :size="20" />
-            <AppIcon v-else name="category" :size="18" class="text-slate-400" />
+            <TxnAvatar v-if="option.kind === 'category'" :category="option.category" :size="24" />
+            <TxnAvatar v-else-if="option.kind === 'uncategorized'" kind="uncategorized" :size="24" />
+            <TxnAvatar v-else-if="option.kind === 'transfer'" kind="transfer" :size="24" />
+            <AppIcon v-else name="category" :size="22" class="text-slate-500" />
             {{ option.label }}
-            <span v-if="option.category" class="ml-auto pl-2 text-xs text-slate-400">{{ option.category.kind }}</span>
+            <span v-if="option.category" class="ml-auto pl-2 text-sm text-slate-600">{{ option.category.kind }}</span>
           </span>
         </template>
       </Select>
       <Button v-if="filtered || search" label="Clear filters" severity="secondary" text size="small" @click="clearFilters">
-        <template #icon><AppIcon name="filter_alt_off" :size="16" /></template>
+        <template #icon><AppIcon name="filter_alt_off" :size="19" /></template>
       </Button>
       <div class="ml-auto flex gap-2">
         <Button
@@ -372,17 +372,17 @@ function rowClass(t: Row) {
           data-testid="delete-selected"
           @click="confirmDelete(selected)"
         >
-          <template #icon><AppIcon name="delete" :size="17" /></template>
+          <template #icon><AppIcon name="delete" :size="20" /></template>
         </Button>
         <RouterLink v-slot="{ navigate }" to="/add" custom>
           <Button label="Add" @click="navigate">
-            <template #icon><AppIcon name="add" :size="17" /></template>
+            <template #icon><AppIcon name="add" :size="20" /></template>
           </Button>
         </RouterLink>
       </div>
     </div>
 
-    <div class="card flex flex-wrap items-center gap-x-6 gap-y-1 px-3 py-2 text-sm" data-testid="month-summary">
+    <div class="card flex flex-wrap items-center gap-x-6 gap-y-1 px-3 py-2" data-testid="month-summary">
       <span>Spent <strong class="text-expense tabular-nums">{{ totals.data.value ? formatRupeesCompact(totals.data.value.expensePaise) : '…' }}</strong></span>
       <span>Income <strong class="text-income tabular-nums">{{ totals.data.value ? formatRupeesCompact(totals.data.value.incomePaise) : '…' }}</strong></span>
       <span>
@@ -394,12 +394,12 @@ function rowClass(t: Row) {
       <button
         type="button"
         class="hover:underline"
-        :class="(totals.data.value?.uncategorizedCount ?? 0) > 0 ? 'font-semibold text-uncat' : 'text-slate-500'"
+        :class="(totals.data.value?.uncategorizedCount ?? 0) > 0 ? 'font-semibold text-uncat-ink' : 'text-slate-600'"
         @click="categoryFilter = 'uncategorized'"
       >
         Uncategorized {{ totals.data.value?.uncategorizedCount ?? '…' }}
       </button>
-      <span class="ml-auto text-slate-500" data-testid="row-count">
+      <span class="ml-auto text-sm text-slate-600" data-testid="row-count">
         <template v-if="filtered">
           Showing {{ rows.length }} of {{ allRows.length }} · spent {{ formatRupeesCompact(viewSpent) }}
           <template v-if="viewIncome"> · income {{ formatRupeesCompact(viewIncome) }}</template>
@@ -410,7 +410,7 @@ function rowClass(t: Row) {
     </div>
 
     <div v-if="txns.error.value && !txns.data.value" class="card flex items-center gap-3 p-4" role="alert">
-      <AppIcon name="cloud_off" :size="26" class="text-expense" />
+      <AppIcon name="cloud_off" :size="30" class="text-expense" />
       <span>{{ describeError(txns.error.value) }}</span>
       <Button label="Retry" size="small" @click="txns.refresh()" />
     </div>
@@ -434,7 +434,7 @@ function rowClass(t: Row) {
         @cell-edit-complete="onEditComplete"
       >
         <template #empty>
-          <div class="py-8 text-center text-slate-500">
+          <div class="py-8 text-center text-slate-600">
             <template v-if="filtered || search">
               No transactions match the filters.
               <button type="button" class="text-ocean hover:underline" @click="clearFilters">Clear filters</button>
@@ -448,24 +448,25 @@ function rowClass(t: Row) {
 
         <Column selection-mode="multiple" header-style="width: 2.4rem" />
 
-        <Column field="date" header="Date" sortable style="width: 8.2rem">
+        <Column field="date" header="Date" sortable style="width: 8.2rem" body-class="whitespace-nowrap">
           <template #body="{ data }">
             <span class="tabular-nums">{{ formatDateIndian(data.date) }}</span>
-            <span class="ml-1 text-xs text-slate-400">{{ shortWeekday(data.date) }}</span>
+            <span class="ml-1 text-sm text-slate-600">{{ shortWeekday(data.date) }}</span>
           </template>
           <template #editor>
             <input v-model="edit.text" v-focus class="cell-editor" aria-label="Date (dd/mm/yyyy)" placeholder="dd/mm/yyyy" />
           </template>
         </Column>
 
-        <Column field="description" header="Description" sortable style="min-width: 16rem">
+        <Column field="description" header="Description" sortable style="width: 100%; min-width: 13.5rem">
           <template #body="{ data }">
-            <span class="flex min-w-0 items-center gap-2">
-              <TxnAvatar v-if="data.type === 'transfer'" kind="transfer" :size="24" />
-              <TxnAvatar v-else-if="!data.categoryId" kind="uncategorized" :size="24" />
-              <TxnAvatar v-else :category="categoriesById.get(data.categoryId) ?? null" :size="24" />
-              <MerchantBadge :description="data.description" :size="15" />
-              <span class="truncate" :class="data.description ? '' : 'italic text-slate-400'">{{ data.description || '(no description)' }}</span>
+            <!-- w-0 + min-w-full: the text truncates instead of widening the table. -->
+            <span class="flex w-0 min-w-full items-center gap-2">
+              <TxnAvatar v-if="data.type === 'transfer'" kind="transfer" :size="28" />
+              <TxnAvatar v-else-if="!data.categoryId" kind="uncategorized" :size="28" />
+              <TxnAvatar v-else :category="categoriesById.get(data.categoryId) ?? null" :size="28" />
+              <MerchantBadge :description="data.description" :size="18" />
+              <span class="truncate" :class="data.description ? '' : 'italic text-slate-500'">{{ data.description || '(no description)' }}</span>
             </span>
           </template>
           <template #editor>
@@ -475,10 +476,10 @@ function rowClass(t: Row) {
 
         <Column field="categoryId" sort-field="categoryName" header="Category" sortable style="width: 12rem">
           <template #body="{ data }">
-            <span v-if="data.type === 'transfer'" class="text-sm font-medium text-transfer">Transfer</span>
+            <span v-if="data.type === 'transfer'" class="font-medium text-transfer">Transfer</span>
             <span
               v-else-if="!data.categoryId"
-              class="rounded border border-amber-400/60 bg-amber-50 px-1.5 py-px text-xs text-[#7a4a00]"
+              class="rounded border border-amber-400/70 bg-amber-50 px-1.5 py-px text-sm text-uncat-ink"
               data-testid="uncategorized-chip"
               >Uncategorized</span
             >
@@ -488,7 +489,7 @@ function rowClass(t: Row) {
                 :style="{ color: readableTextColor(categoriesById.get(data.categoryId)?.color ?? '#546E7A') }"
                 >{{ data.categoryName }}</span
               >
-              <span v-if="data.autoCategorized" class="text-xs text-slate-400" title="Chosen automatically">auto</span>
+              <span v-if="data.autoCategorized" class="text-sm text-slate-600" title="Chosen automatically">auto</span>
             </span>
           </template>
           <template #editor="{ data }">
@@ -503,8 +504,8 @@ function rowClass(t: Row) {
               aria-label="Category"
             >
               <template #option="{ option }">
-                <TxnAvatar v-if="option.category" :category="option.category" :size="20" />
-                <TxnAvatar v-else kind="auto" :size="20" />
+                <TxnAvatar v-if="option.category" :category="option.category" :size="24" />
+                <TxnAvatar v-else kind="auto" :size="24" />
                 {{ option.label }}
               </template>
             </ComboInput>
@@ -516,7 +517,7 @@ function rowClass(t: Row) {
           header="Amount (₹)"
           sortable
           style="width: 9rem"
-          body-class="text-right"
+          body-class="text-right whitespace-nowrap"
           :pt="{ columnHeaderContent: { class: 'justify-end' } }"
         >
           <template #body="{ data }">
@@ -527,28 +528,28 @@ function rowClass(t: Row) {
           </template>
         </Column>
 
-        <Column field="type" header="Type" sortable style="width: 7.5rem">
+        <Column field="type" header="Type" sortable style="width: 7.5rem" body-class="whitespace-nowrap">
           <template #body="{ data }">
             <span class="inline-flex items-center gap-1 text-slate-600">
-              <AppIcon :name="TXN_TYPES.find((x) => x.value === data.type)!.icon.name" :size="15" />
+              <AppIcon :name="TXN_TYPES.find((x) => x.value === data.type)!.icon.name" :size="18" />
               {{ TXN_TYPES.find((x) => x.value === data.type)!.label }}
             </span>
           </template>
           <template #editor>
             <ComboInput v-model="edit.text" :options="TYPE_OPTIONS" autofocus aria-label="Type">
-              <template #option="{ option }"><AppIcon :name="option.icon.name" :size="16" />{{ option.label }}</template>
+              <template #option="{ option }"><AppIcon :name="option.icon.name" :size="19" />{{ option.label }}</template>
             </ComboInput>
           </template>
         </Column>
 
-        <Column field="accountId" sort-field="accountName" header="Account" sortable style="width: 10rem">
+        <Column field="accountId" sort-field="accountName" header="Account" sortable style="width: 10rem" body-class="whitespace-nowrap">
           <template #body="{ data }">
             <span class="inline-flex items-center gap-1.5 text-slate-700">
               <AppIcon
                 v-if="accountsById.get(data.accountId)"
                 :name="ACCOUNT_TYPES[accountsById.get(data.accountId)!.type].icon.name"
                 :filled="ACCOUNT_TYPES[accountsById.get(data.accountId)!.type].icon.filled"
-                :size="15"
+                :size="18"
                 :style="{ color: ACCOUNT_TYPES[accountsById.get(data.accountId)!.type].color }"
               />
               {{ data.accountName }}
@@ -556,39 +557,39 @@ function rowClass(t: Row) {
           </template>
           <template #editor>
             <ComboInput v-model="edit.text" :options="accountOptions(accounts)" autofocus aria-label="Account">
-              <template #option="{ option }"><AccountAvatar :type="option.account.type" :size="20" />{{ option.label }}</template>
+              <template #option="{ option }"><AccountAvatar :type="option.account.type" :size="24" />{{ option.label }}</template>
             </ComboInput>
           </template>
         </Column>
 
-        <Column field="toAccountId" header="To" style="width: 9rem">
+        <Column field="toAccountId" header="To" style="width: 9rem" body-class="whitespace-nowrap">
           <template #body="{ data }">
             <span v-if="data.toAccountId" class="inline-flex items-center gap-1 text-slate-700">
-              <AppIcon name="arrow_forward" :size="14" class="text-slate-400" />{{ accountsById.get(data.toAccountId)?.name ?? '…' }}
+              <AppIcon name="arrow_forward" :size="17" class="text-slate-500" />{{ accountsById.get(data.toAccountId)?.name ?? '…' }}
             </span>
           </template>
           <template #editor="{ data }">
             <input v-if="data.type !== 'transfer'" v-focus readonly class="cell-editor" placeholder="Only for transfers" />
             <ComboInput v-else v-model="edit.text" :options="accountOptions(accounts)" autofocus aria-label="To account">
-              <template #option="{ option }"><AccountAvatar :type="option.account.type" :size="20" />{{ option.label }}</template>
+              <template #option="{ option }"><AccountAvatar :type="option.account.type" :size="24" />{{ option.label }}</template>
             </ComboInput>
           </template>
         </Column>
 
-        <Column field="paymentMethod" sort-field="methodName" header="Paid by" sortable style="width: 7.5rem">
+        <Column field="paymentMethod" sort-field="methodName" header="Paid by" sortable style="width: 7.5rem" body-class="whitespace-nowrap">
           <template #body="{ data }">
             <span v-if="data.paymentMethod" class="inline-flex items-center gap-1 text-slate-600">
               <AppIcon
                 :name="PAYMENT_METHODS.find((m) => m.value === data.paymentMethod)!.icon.name"
                 :filled="PAYMENT_METHODS.find((m) => m.value === data.paymentMethod)!.icon.filled"
-                :size="15"
+                :size="18"
               />{{ data.methodName }}
             </span>
           </template>
           <template #editor>
             <ComboInput v-model="edit.text" :options="METHOD_OPTIONS" autofocus aria-label="Paid by">
               <template #option="{ option }">
-                <AppIcon :name="option.icon.name" :filled="option.icon.filled" :size="16" />{{ option.label }}
+                <AppIcon :name="option.icon.name" :filled="option.icon.filled" :size="19" />{{ option.label }}
               </template>
             </ComboInput>
           </template>
@@ -598,12 +599,12 @@ function rowClass(t: Row) {
           <template #body="{ data }">
             <button
               type="button"
-              class="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-expense"
+              class="flex rounded p-1 text-slate-500 hover:bg-red-50 hover:text-expense"
               :aria-label="`Delete ${describeTxn(data)}`"
               data-testid="delete-row"
               @click="confirmDelete([data])"
             >
-              <AppIcon name="delete" :size="17" />
+              <AppIcon name="delete" :size="20" />
             </button>
           </template>
         </Column>
@@ -629,7 +630,7 @@ function rowClass(t: Row) {
         class="w-full"
         aria-label="To account"
       />
-      <p class="mt-3 text-xs text-slate-500">Transfers have no category and don't count as spending.</p>
+      <p class="mt-3 text-sm text-slate-600">Transfers have no category and don't count as spending.</p>
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="transfer.txn = null" />
         <Button label="Make it a transfer" :disabled="!transfer.to" @click="confirmTransfer" />
@@ -639,9 +640,16 @@ function rowClass(t: Row) {
 </template>
 
 <style scoped>
+.txn-table {
+  font-size: var(--text-dense);
+  line-height: var(--text-dense--line-height);
+}
+.txn-table :deep(.p-datatable-thead > tr > th) {
+  white-space: nowrap;
+}
 .txn-table :deep(.p-datatable-tbody > tr > td) {
-  padding-top: 0.28rem;
-  padding-bottom: 0.28rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
 }
 .txn-table :deep(td[data-p-cell-editing='true']) {
   outline: 2px solid var(--p-primary-color);

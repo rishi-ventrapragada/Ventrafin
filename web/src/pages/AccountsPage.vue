@@ -31,13 +31,13 @@ const accounts = computed(() => app.accounts.data.value)
         </thead>
         <tbody>
           <tr v-for="a in accounts" :key="a.id">
-            <td><AccountAvatar :type="a.type" :size="28" /></td>
+            <td><AccountAvatar :type="a.type" :size="32" /></td>
             <td class="font-medium">{{ a.name }}</td>
             <td class="text-slate-600">{{ ACCOUNT_TYPES[a.type].label }}</td>
           </tr>
         </tbody>
       </table>
     </div>
-    <p class="text-sm text-slate-500">Adding and renaming accounts is coming in a later update.</p>
+    <p class="text-sm text-slate-600">Adding and renaming accounts is coming in a later update.</p>
   </div>
 </template>

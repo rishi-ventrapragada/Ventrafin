@@ -14,13 +14,30 @@
   --color-income: #2e7d32;
   --color-transfer: #546e7a;
   --color-uncat: #b26a00;
+  /* The Uncategorized amber as words: #b26a00 is only 4.2:1 on white. */
+  --color-uncat-ink: #7a4a00;
   --color-page: #f3f6f9;
+  /* Table and list text: a step under the body size, so dense tables
+     (DECISIONS.md D7) keep their rows per screen. 16px at the 17px root. */
+  --text-dense: 0.94rem;
+  --text-dense--line-height: 1.45;
 }
 
 @layer base {
-  /* Dense, Excel-like (DECISIONS.md D7): 14px root, so every rem is smaller. */
+  /* Readable on a laptop at arm's length (up from 14px). Everything in rem,
+     including PrimeVue, scales with it; tables stay dense through
+     --text-dense and tight row padding, not through small type.
+     17px from 1500px wide (a 1080p laptop at 125 %). Narrower windows are
+     mostly screens whose CSS pixel is physically bigger (1366x768 at 100 %,
+     1080p at 150 %), so 16px there is at least as large on the glass, and
+     the tables still fit without scrolling sideways. */
   html {
-    font-size: 14px;
+    font-size: 16px;
+  }
+  @media (min-width: 1500px) {
+    html {
+      font-size: 17px;
+    }
   }
   body {
     background: var(--color-page);
@@ -45,23 +62,25 @@
     border-radius: 0.5rem;
   }
   .card-title {
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: #1e293b;
   }
+  /* Secondary text is slate-600 (7.6:1), not slate-500 (4.8:1) or lighter. */
   .muted {
-    color: #64748b;
+    color: #475569;
   }
   /* Dense data tables that aren't PrimeVue DataTables (dashboard, previews). */
   .dense-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.93rem;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
   }
   .dense-table th {
     font-weight: 600;
-    color: #475569;
-    font-size: 0.85rem;
+    color: #334155;
+    font-size: 0.88rem;
     text-align: left;
     padding: 0.35rem 0.5rem;
     border-bottom: 1px solid #cbd5e1;

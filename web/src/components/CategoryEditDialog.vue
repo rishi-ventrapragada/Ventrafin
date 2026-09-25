@@ -96,7 +96,7 @@ async function save() {
   <Dialog v-model:visible="visible" modal :header="category ? `Edit ${category.kind} category` : ''" :style="{ width: 'min(46rem, 96vw)' }">
     <div v-if="category" class="flex flex-col gap-4">
       <div class="flex items-start gap-3">
-        <IconCircle :icon="icon" :color="color" :size="44" />
+        <IconCircle :icon="icon" :color="color" :size="52" />
         <div class="flex-1">
           <label for="category-name" class="mb-1 block text-sm font-semibold text-slate-700">Name</label>
           <input
@@ -110,7 +110,7 @@ async function save() {
             @keydown.enter.prevent="save"
           />
           <p v-if="nameError" class="mt-1 text-sm text-expense" data-testid="category-name-error">{{ nameError }}</p>
-          <p v-else class="mt-1 text-xs text-slate-500">
+          <p v-else class="mt-1 text-sm text-slate-600">
             Renaming keeps its automatic matches: if Food becomes "Khana", Swiggy still goes there.
           </p>
         </div>
@@ -131,7 +131,7 @@ async function save() {
             :data-testid="`color-${hex}`"
             @click="color = hex"
           >
-            <AppIcon v-if="hex === color" name="check" :size="18" />
+            <AppIcon v-if="hex === color" name="check" :size="21" />
           </button>
         </div>
       </div>
@@ -153,7 +153,7 @@ async function save() {
               :data-testid="`icon-${def.key}`"
               @click="icon = def.key"
             >
-              <AppIcon :name="def.key" filled :size="22" />
+              <AppIcon :name="def.key" filled :size="25" />
             </button>
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
   foregroundOn,
   luminance,
   readableTextColor,
+  tintOnWhite,
 } from '@/lib/categoryStyle'
 import { FILLED_ICONS, OUTLINED_ICONS } from '@/lib/icons.generated'
 import { fnv1a32, merchantBadgeFor, merchantKey } from '@/lib/merchant'
@@ -55,16 +56,32 @@ describe('colours', () => {
     expect(CATEGORY_PALETTE).toEqual(shared.palette)
   })
 
-  it('glyphs on category circles are readable: white at 3:1 or better, else dark', () => {
+  it('glyphs on category circles are comfortably readable: white or dark, 4.2:1 or better on every palette colour', () => {
     expect(foregroundOn('#1565C0')).toBe('#FFFFFF')
     expect(foregroundOn('#FDD835')).toBe('rgba(0, 0, 0, 0.87)')
+    // Mid-tone green: white is only 3.3:1 on it, so the glyph is dark.
+    expect(foregroundOn('#43A047')).toBe('rgba(0, 0, 0, 0.87)')
+    // Red: a near-tie (4.2 against 4.6), so white, as on the phone.
+    expect(foregroundOn('#E53935')).toBe('#FFFFFF')
+    const darkOn = (hex: string) => {
+      const n = Number.parseInt(hex.slice(1), 16)
+      return `#${[(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff].map((c) => Math.round(c * 0.13).toString(16).padStart(2, '0')).join('')}`
+    }
     for (const hex of CATEGORY_PALETTE) {
-      if (foregroundOn(hex) === '#FFFFFF') expect(contrast(hex, '#FFFFFF'), hex).toBeGreaterThanOrEqual(3)
+      const glyph = foregroundOn(hex) === '#FFFFFF' ? '#FFFFFF' : darkOn(hex)
+      expect(contrast(hex, glyph), hex).toBeGreaterThanOrEqual(4.2)
     }
   })
 
   it('category names written in their colour are readable on white (4.5:1)', () => {
     for (const hex of CATEGORY_PALETTE) expect(contrast(readableTextColor(hex), '#FFFFFF'), hex).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('merchant letters are readable on their tinted badge (4.5:1)', () => {
+    for (const hex of CATEGORY_PALETTE) {
+      const badge = tintOnWhite(hex, 0.18)
+      expect(contrast(readableTextColor(hex, badge), badge), hex).toBeGreaterThanOrEqual(4.5)
+    }
   })
 })
 

@@ -2,9 +2,10 @@
 // A glyph in a circle. Filled = a real category (its colour, readable glyph);
 // outlined = a "no category" state (Uncategorized, Transfer, Auto), so it
 // can't be mistaken for a category at a glance. Same as the phone's
-// ColorIconCircle / OutlinedIconCircle.
+// ColorIconCircle / OutlinedIconCircle, except that an outlined glyph is
+// drawn in a shade readable on its tint (the amber "?" was 3.7:1).
 import { computed } from 'vue'
-import { foregroundOn, withAlpha } from '@/lib/categoryStyle'
+import { foregroundOn, readableTextColor, withAlpha } from '@/lib/categoryStyle'
 import AppIcon from './AppIcon.vue'
 
 const props = withDefaults(
@@ -20,13 +21,14 @@ const props = withDefaults(
 
 const style = computed(() => {
   const s = `${props.size}px`
+  const ink = readableTextColor(props.color)
   return props.outlined
     ? {
         width: s,
         height: s,
         background: withAlpha(props.color, 0.1),
-        border: `${props.size >= 28 ? 2 : 1.5}px solid ${props.color}`,
-        color: props.color,
+        border: `${props.size >= 24 ? 2 : 1.5}px solid ${ink}`,
+        color: ink,
       }
     : { width: s, height: s, background: props.color, color: foregroundOn(props.color) }
 })

@@ -15,7 +15,7 @@ interface DonutSegment {
 
 const props = withDefaults(
   defineProps<{ segments: readonly DonutSegment[]; size?: number; thickness?: number; centerLabel?: string; centerValue?: string }>(),
-  { size: 150, thickness: 28, centerLabel: '', centerValue: '' },
+  { size: 196, thickness: 34, centerLabel: '', centerValue: '' },
 )
 
 const GAP_DEGREES = 1.2
@@ -87,8 +87,8 @@ const iconSize = computed(() => Math.round(props.thickness * 0.58))
       </template>
     </svg>
     <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-      <span class="text-xs text-slate-500">{{ centerLabel }}</span>
-      <span class="text-sm font-bold text-expense tabular-nums">{{ centerValue }}</span>
+      <span class="text-sm font-medium text-slate-600">{{ centerLabel }}</span>
+      <span class="text-lg leading-tight font-bold text-expense tabular-nums">{{ centerValue }}</span>
     </div>
   </div>
 </template>

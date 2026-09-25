@@ -51,8 +51,8 @@ async function signOut() {
   <div class="flex h-screen min-h-0 overflow-hidden">
     <nav class="flex w-52 shrink-0 flex-col bg-ocean text-white" aria-label="Sections">
       <div class="flex items-center gap-2 px-4 pt-4 pb-5">
-        <AppLogo :size="28" class="rounded-md ring-1 ring-white/30" />
-        <span class="text-lg font-semibold tracking-wide">Ventrafin</span>
+        <AppLogo :size="32" class="rounded-md ring-1 ring-white/30" />
+        <span class="text-xl font-semibold tracking-wide">Ventrafin</span>
       </div>
       <ul class="flex flex-col gap-0.5 px-2">
         <li v-for="item in NAV" :key="item.to">
@@ -63,21 +63,21 @@ async function signOut() {
           >
             <a
               :href="href"
-              class="flex items-center gap-3 rounded-md px-3 py-2 text-[0.97rem] transition-colors"
-              :class="isActive ? 'bg-white/18 font-semibold shadow-[inset_3px_0_0_#4db6ac]' : 'text-white/85 hover:bg-white/10'"
+              class="flex items-center gap-3 rounded-md px-3 py-2 text-[1.03rem] transition-colors"
+              :class="isActive ? 'bg-white/18 font-semibold shadow-[inset_3px_0_0_#4db6ac]' : 'text-white/90 hover:bg-white/10'"
               :aria-current="isActive ? 'page' : undefined"
               @click="navigate"
             >
-              <AppIcon :name="item.icon" :filled="isActive" :size="20" />
+              <AppIcon :name="item.icon" :filled="isActive" :size="24" />
               {{ item.label }}
             </a>
           </RouterLink>
         </li>
       </ul>
       <div class="mt-auto border-t border-white/15 px-4 py-3 text-sm">
-        <div class="truncate text-white/80" :title="app.auth.user.value?.email">{{ app.auth.user.value?.email }}</div>
+        <div class="truncate text-white/90" :title="app.auth.user.value?.email">{{ app.auth.user.value?.email }}</div>
         <button type="button" class="mt-1 inline-flex items-center gap-1.5 text-white/90 hover:text-white hover:underline" @click="signOut">
-          <AppIcon name="logout" :size="16" /> Sign out
+          <AppIcon name="logout" :size="19" /> Sign out
         </button>
       </div>
     </nav>
@@ -85,14 +85,14 @@ async function signOut() {
     <div class="flex min-w-0 flex-1 flex-col">
       <OfflineBanner />
       <header class="flex h-11 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5">
-        <span class="text-[0.95rem] font-semibold text-slate-700">{{ title }}</span>
+        <span class="font-semibold text-slate-700">{{ title }}</span>
         <span
           v-if="app.online.value"
           v-tooltip.bottom="liveLabel.tip"
-          class="ml-auto inline-flex items-center gap-1.5 text-xs text-slate-500"
+          class="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-600"
           data-testid="live-status"
         >
-          <span class="h-2 w-2 rounded-full" :class="liveLabel.dot" /> {{ liveLabel.text }}
+          <span class="h-2.5 w-2.5 rounded-full" :class="liveLabel.dot" /> {{ liveLabel.text }}
         </span>
       </header>
       <main class="min-h-0 flex-1 overflow-auto px-5 py-4">

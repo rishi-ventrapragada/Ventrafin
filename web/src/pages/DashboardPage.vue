@@ -93,12 +93,12 @@ function openUncategorized() {
       <div class="ml-auto flex gap-2">
         <RouterLink v-slot="{ navigate }" to="/add" custom>
           <Button label="Add today's expenses" @click="navigate">
-            <template #icon><AppIcon name="add" :size="18" /></template>
+            <template #icon><AppIcon name="add" :size="21" /></template>
           </Button>
         </RouterLink>
         <RouterLink v-slot="{ navigate }" :to="{ path: '/transactions', query: { month: monthKey(month) } }" custom>
           <Button label="Transactions" severity="secondary" outlined @click="navigate">
-            <template #icon><AppIcon name="receipt_long" :size="18" /></template>
+            <template #icon><AppIcon name="receipt_long" :size="21" /></template>
           </Button>
         </RouterLink>
       </div>
@@ -122,20 +122,20 @@ function openUncategorized() {
             </thead>
             <tbody>
               <tr>
-                <td>Spent</td>
-                <td class="num font-semibold" :style="{ color: EXPENSE_COLOR }" data-testid="spent-now">{{ t ? formatRupees(t.expensePaise) : '…' }}</td>
+                <td class="font-medium">Spent</td>
+                <td class="num text-lg font-semibold" :style="{ color: EXPENSE_COLOR }" data-testid="spent-now">{{ t ? formatRupees(t.expensePaise) : '…' }}</td>
                 <td class="num text-slate-600">{{ t ? formatRupeesCompact(t.lastExpensePaise) : '' }}</td>
                 <td class="num"><ChangeCell v-if="t" :now="t.expensePaise" :before="t.lastExpensePaise" /></td>
               </tr>
               <tr>
-                <td>Income</td>
-                <td class="num font-semibold" :style="{ color: INCOME_COLOR }">{{ t ? formatRupees(t.incomePaise) : '…' }}</td>
+                <td class="font-medium">Income</td>
+                <td class="num text-lg font-semibold" :style="{ color: INCOME_COLOR }">{{ t ? formatRupees(t.incomePaise) : '…' }}</td>
                 <td class="num text-slate-600">{{ t ? formatRupeesCompact(t.lastIncomePaise) : '' }}</td>
                 <td class="num"><ChangeCell v-if="t" :now="t.incomePaise" :before="t.lastIncomePaise" up-is-good /></td>
               </tr>
               <tr>
                 <td class="font-semibold">Net</td>
-                <td class="num font-semibold">{{ t ? formatRupees(t.incomePaise - t.expensePaise) : '…' }}</td>
+                <td class="num text-lg font-semibold">{{ t ? formatRupees(t.incomePaise - t.expensePaise) : '…' }}</td>
                 <td class="num text-slate-600">{{ t ? formatRupeesCompact(t.lastIncomePaise - t.lastExpensePaise) : '' }}</td>
                 <td></td>
               </tr>
@@ -150,26 +150,26 @@ function openUncategorized() {
           data-testid="uncategorized-callout"
           @click="openUncategorized"
         >
-          <TxnAvatar kind="uncategorized" :size="30" />
+          <TxnAvatar kind="uncategorized" :size="36" />
           <span>
             <span class="block font-semibold text-slate-800">{{ t.uncategorizedCount }} uncategorized in {{ monthLabel(month) }}</span>
-            <span class="text-sm text-slate-600">Open them and pick a category. Ventrafin learns from it.</span>
+            <span class="text-sm text-slate-700">Open them and pick a category. Ventrafin learns from it.</span>
           </span>
-          <AppIcon name="chevron_right" :size="20" class="ml-auto text-slate-500" />
+          <AppIcon name="chevron_right" :size="24" class="ml-auto text-slate-600" />
         </button>
       </div>
 
       <section class="card p-3" data-testid="category-breakdown">
         <div class="mb-2 flex items-baseline gap-2">
           <h2 class="card-title">Spending by category</h2>
-          <span class="text-sm text-slate-500">{{ monthLabel(month) }} against the month before</span>
+          <span class="text-sm text-slate-600">{{ monthLabel(month) }} against the month before</span>
         </div>
         <p v-if="comparison.error.value && !comparison.data.value" class="text-sm text-expense" role="alert">
           Couldn't load the breakdown. {{ describeError(comparison.error.value) }}
         </p>
         <p v-else-if="!comparison.data.value" class="muted py-6">Loading…</p>
         <p v-else-if="rows.length === 0" class="py-4 text-slate-600">Nothing spent yet in {{ monthLabel(month) }}.</p>
-        <div v-else class="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div v-else class="flex flex-col gap-4 min-[110rem]:flex-row min-[110rem]:items-start">
           <div class="flex items-center gap-4">
             <DonutChart
               v-if="spentTotal > 0"
@@ -177,10 +177,10 @@ function openUncategorized() {
               center-label="Spent"
               :center-value="formatRupeesCompact(spentTotal)"
             />
-            <ul class="flex min-w-[11rem] flex-col gap-1 text-sm">
+            <ul class="flex min-w-[11rem] flex-col gap-1.5 text-dense">
               <li v-for="r in rows.filter((x) => x.now > 0).slice(0, 6)" :key="r.key" class="flex items-center gap-2">
-                <TxnAvatar v-if="r.uncategorized" kind="uncategorized" :size="18" />
-                <TxnAvatar v-else :category="r.category" :size="18" />
+                <TxnAvatar v-if="r.uncategorized" kind="uncategorized" :size="24" />
+                <TxnAvatar v-else :category="r.category" :size="24" />
                 <span class="flex-1 truncate">{{ r.name }}</span>
                 <span class="font-bold tabular-nums">{{ share(r.now) }}</span>
               </li>
@@ -200,15 +200,15 @@ function openUncategorized() {
               <tr v-for="r in rows" :key="r.key" :data-breakdown="r.key">
                 <td>
                   <span class="flex items-center gap-2">
-                    <TxnAvatar v-if="r.uncategorized" kind="uncategorized" :size="22" />
-                    <TxnAvatar v-else :category="r.category" :size="22" />
+                    <TxnAvatar v-if="r.uncategorized" kind="uncategorized" :size="28" />
+                    <TxnAvatar v-else :category="r.category" :size="28" />
                     <span :style="{ color: r.uncategorized ? undefined : readableTextColor(r.color) }" class="font-medium">{{ r.name }}</span>
                   </span>
                 </td>
                 <td class="num font-semibold">{{ formatRupeesCompact(r.now) }}</td>
                 <td class="num text-slate-600">{{ formatRupeesCompact(r.before) }}</td>
                 <td class="num"><ChangeCell :now="r.now" :before="r.before" /></td>
-                <td class="num text-slate-500">{{ share(r.now) }}</td>
+                <td class="num text-slate-600">{{ share(r.now) }}</td>
               </tr>
               <tr class="font-semibold">
                 <td>Total</td>

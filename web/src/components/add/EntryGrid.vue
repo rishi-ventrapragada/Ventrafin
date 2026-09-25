@@ -208,15 +208,15 @@ defineExpose({
   <div class="overflow-x-auto rounded-md border border-slate-300 bg-white">
     <table ref="table" class="entry-grid" aria-label="New transactions">
       <colgroup>
-        <col style="width: 2.4rem" />
-        <col style="width: 7.4rem" />
-        <col style="min-width: 14rem" />
+        <col style="width: 2.2rem" />
+        <col style="width: 6.2rem" />
+        <col />
+        <col style="width: 6.4rem" />
         <col style="width: 7.6rem" />
-        <col style="width: 7.4rem" />
-        <col style="width: 11rem" />
-        <col style="width: 9.5rem" />
-        <col style="width: 9.5rem" />
-        <col style="width: 7rem" />
+        <col style="width: 10.2rem" />
+        <col style="width: 8.8rem" />
+        <col style="width: 6.8rem" />
+        <col style="width: 6.2rem" />
         <col style="width: 2rem" />
         <col style="width: 2rem" />
       </colgroup>
@@ -227,7 +227,7 @@ defineExpose({
           <th>Description</th>
           <th class="text-right">Amount (₹)</th>
           <th>Type</th>
-          <th>Category <span class="font-normal text-slate-400">(optional)</span></th>
+          <th>Category <span class="font-normal text-slate-600">(optional)</span></th>
           <th>Account</th>
           <th>To account</th>
           <th>Paid by</th>
@@ -261,7 +261,7 @@ defineExpose({
 
           <td :class="cellClass(i, 'description')" :title="cellTitle(i, 'description')">
             <div class="flex h-full items-center gap-1.5">
-              <MerchantBadge :description="row.raw.description" :size="15" />
+              <MerchantBadge :description="row.raw.description" :size="18" />
               <input
                 :value="row.raw.description"
                 :data-row="i"
@@ -301,10 +301,10 @@ defineExpose({
               @update:model-value="emit('edit', i, 'type', $event)"
             >
               <template #prefix>
-                <AppIcon :name="TYPE_OPTIONS.find((o) => o.value === typeOf(row))!.icon.name" :size="16" class="text-slate-500" />
+                <AppIcon :name="TYPE_OPTIONS.find((o) => o.value === typeOf(row))!.icon.name" :size="19" class="text-slate-600" />
               </template>
               <template #option="{ option }">
-                <AppIcon :name="option.icon.name" :size="16" class="text-slate-500" />{{ option.label }}
+                <AppIcon :name="option.icon.name" :size="19" class="text-slate-600" />{{ option.label }}
               </template>
             </ComboInput>
           </td>
@@ -320,18 +320,18 @@ defineExpose({
               @update:model-value="emit('edit', i, 'category', $event)"
             >
               <template #prefix>
-                <TxnAvatar v-if="typeOf(row) === 'transfer'" kind="transfer" :size="20" />
-                <TxnAvatar v-else-if="isAutoCategory(row.raw.category)" kind="auto" :size="20" />
+                <TxnAvatar v-if="typeOf(row) === 'transfer'" kind="transfer" :size="24" />
+                <TxnAvatar v-else-if="isAutoCategory(row.raw.category)" kind="auto" :size="24" />
                 <TxnAvatar
                   v-else-if="matchCategory(row.raw.category, typeOf(row) === 'income' ? 'income' : 'expense', context.categories)"
                   :category="matchCategory(row.raw.category, typeOf(row) === 'income' ? 'income' : 'expense', context.categories)"
-                  :size="20"
+                  :size="24"
                 />
-                <TxnAvatar v-else kind="uncategorized" :size="20" />
+                <TxnAvatar v-else kind="uncategorized" :size="24" />
               </template>
               <template #option="{ option }">
-                <TxnAvatar v-if="option.category" :category="option.category" :size="20" />
-                <TxnAvatar v-else kind="auto" :size="20" />
+                <TxnAvatar v-if="option.category" :category="option.category" :size="24" />
+                <TxnAvatar v-else kind="auto" :size="24" />
                 {{ option.label }}
               </template>
             </ComboInput>
@@ -351,12 +351,12 @@ defineExpose({
                   v-if="matchAccount(row.raw.account, context.accounts)"
                   :name="ACCOUNT_TYPES[matchAccount(row.raw.account, context.accounts)!.type].icon.name"
                   :filled="ACCOUNT_TYPES[matchAccount(row.raw.account, context.accounts)!.type].icon.filled"
-                  :size="16"
+                  :size="19"
                   :style="{ color: ACCOUNT_TYPES[matchAccount(row.raw.account, context.accounts)!.type].color }"
                 />
               </template>
               <template #option="{ option }">
-                <AccountAvatar :type="option.account.type" :size="20" />{{ option.label }}
+                <AccountAvatar :type="option.account.type" :size="24" />{{ option.label }}
               </template>
             </ComboInput>
           </td>
@@ -372,7 +372,7 @@ defineExpose({
               @update:model-value="emit('edit', i, 'toAccount', $event)"
             >
               <template #option="{ option }">
-                <AccountAvatar :type="option.account.type" :size="20" />{{ option.label }}
+                <AccountAvatar :type="option.account.type" :size="24" />{{ option.label }}
               </template>
             </ComboInput>
           </td>
@@ -392,33 +392,33 @@ defineExpose({
                   v-if="METHOD_OPTIONS.find((o) => o.label === row.raw.method)"
                   :name="METHOD_OPTIONS.find((o) => o.label === row.raw.method)!.icon.name"
                   :filled="METHOD_OPTIONS.find((o) => o.label === row.raw.method)!.icon.filled"
-                  :size="16"
-                  class="text-slate-500"
+                  :size="19"
+                  class="text-slate-600"
                 />
               </template>
               <template #option="{ option }">
-                <AppIcon :name="option.icon.name" :filled="option.icon.filled" :size="16" class="text-slate-500" />{{ option.label }}
+                <AppIcon :name="option.icon.name" :filled="option.icon.filled" :size="19" class="text-slate-600" />{{ option.label }}
               </template>
             </ComboInput>
           </td>
 
           <td class="text-center" :title="statusText(i)">
-            <AppIcon v-if="statusOf(i) === 'ok'" name="check_circle" :size="17" class="text-income" label="Ready" />
-            <AppIcon v-else-if="statusOf(i) === 'warn'" name="warning" filled :size="17" class="text-uncat" label="Ready, with a note" />
-            <AppIcon v-else-if="statusOf(i) === 'error'" name="error" filled :size="17" class="text-expense" label="Needs fixing" />
-            <span v-else-if="statusOf(i) === 'pending'" class="text-slate-300">•</span>
+            <AppIcon v-if="statusOf(i) === 'ok'" name="check_circle" :size="21" class="text-income" label="Ready" />
+            <AppIcon v-else-if="statusOf(i) === 'warn'" name="warning" filled :size="21" class="text-uncat" label="Ready, with a note" />
+            <AppIcon v-else-if="statusOf(i) === 'error'" name="error" filled :size="21" class="text-expense" label="Needs fixing" />
+            <span v-else-if="statusOf(i) === 'pending'" class="text-slate-500">•</span>
           </td>
 
           <td class="text-center">
             <button
               type="button"
               tabindex="-1"
-              class="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-expense"
+              class="rounded p-0.5 text-slate-500 hover:bg-red-50 hover:text-expense"
               :aria-label="`Remove row ${i + 1}`"
               :disabled="disabled"
               @click="emit('removeRow', i)"
             >
-              <AppIcon name="close" :size="15" />
+              <AppIcon name="close" :size="18" />
             </button>
           </td>
         </tr>
@@ -430,9 +430,11 @@ defineExpose({
 <style scoped>
 .entry-grid {
   width: 100%;
+  /* Below this the description column would be crushed: scroll instead. */
+  min-width: 67rem;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 0.95rem;
+  font-size: var(--text-dense);
 }
 .entry-grid th {
   position: sticky;
@@ -441,15 +443,15 @@ defineExpose({
   background: #eef2f7;
   color: #334155;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   text-align: left;
-  padding: 0.4rem 0.45rem;
+  padding: 0.35rem 0.45rem;
   border-bottom: 1px solid #cbd5e1;
   border-right: 1px solid #dde3ea;
   white-space: nowrap;
 }
 .entry-grid td {
-  height: 2.2rem;
+  height: 2.1rem;
   padding: 0 0.45rem;
   border-bottom: 1px solid #e5eaf0;
   border-right: 1px solid #e5eaf0;
@@ -462,9 +464,9 @@ defineExpose({
 }
 .entry-grid td.rownum {
   text-align: center;
-  color: #94a3b8;
+  color: #475569;
   background: #f8fafc;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 .entry-grid input {
   width: 100%;
@@ -473,8 +475,9 @@ defineExpose({
   background: transparent;
   outline: none;
 }
+/* Lighter than typed text, but readable (slate-500, 4.8:1). */
 .entry-grid input::placeholder {
-  color: #b6c0cc;
+  color: #64748b;
 }
 .entry-grid .cell-error {
   background: #fdecea;

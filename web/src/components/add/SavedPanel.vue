@@ -28,7 +28,7 @@ const autoCount = computed(() => props.saved.filter((t) => t.autoCategorized).le
 <template>
   <section class="card overflow-hidden" data-testid="saved-panel" aria-label="Saved this session">
     <header class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-green-50 px-3 py-2">
-      <AppIcon name="check_circle" filled :size="18" class="text-income" />
+      <AppIcon name="check_circle" filled :size="22" class="text-income" />
       <h2 class="font-semibold text-slate-800" data-testid="saved-summary">
         {{ saved.length }} saved this session<template v-if="spent > 0"> · {{ formatRupees(spent) }} spent</template>
       </h2>
@@ -53,8 +53,8 @@ const autoCount = computed(() => props.saved.filter((t) => t.autoCategorized).le
             <td class="whitespace-nowrap">{{ formatDateIndian(t.date) }}</td>
             <td>
               <span class="flex items-center gap-1.5">
-                <MerchantBadge :description="t.description" :size="15" />
-                <span :class="t.description ? '' : 'italic text-slate-400'">{{ t.description || '(no description)' }}</span>
+                <MerchantBadge :description="t.description" :size="18" />
+                <span :class="t.description ? '' : 'italic text-slate-500'">{{ t.description || '(no description)' }}</span>
               </span>
             </td>
             <td
@@ -66,19 +66,19 @@ const autoCount = computed(() => props.saved.filter((t) => t.autoCategorized).le
             <td class="whitespace-nowrap" data-testid="saved-category">
               <span class="inline-flex items-center gap-1.5">
                 <template v-if="t.type === 'transfer'">
-                  <TxnAvatar kind="transfer" :size="20" /><span class="text-transfer">Transfer</span>
+                  <TxnAvatar kind="transfer" :size="24" /><span class="text-transfer">Transfer</span>
                 </template>
                 <template v-else-if="!t.categoryId">
-                  <TxnAvatar kind="uncategorized" :size="20" /><span class="text-uncat">Uncategorized</span>
+                  <TxnAvatar kind="uncategorized" :size="24" /><span class="text-uncat-ink">Uncategorized</span>
                 </template>
                 <template v-else>
-                  <TxnAvatar :category="categoryById.get(t.categoryId) ?? null" :size="20" />
+                  <TxnAvatar :category="categoryById.get(t.categoryId) ?? null" :size="24" />
                   <span
                     class="font-semibold"
                     :style="{ color: readableTextColorFor(categoryById.get(t.categoryId)) }"
                     >{{ categoryById.get(t.categoryId)?.name ?? 'New category' }}</span
                   >
-                  <span v-if="t.autoCategorized" class="rounded bg-slate-100 px-1 text-xs text-slate-500">auto</span>
+                  <span v-if="t.autoCategorized" class="rounded bg-slate-100 px-1 text-sm text-slate-600">auto</span>
                 </template>
               </span>
             </td>

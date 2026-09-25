@@ -106,7 +106,7 @@ function problemText(p: ParsedRow) {
           id="paste-box"
           v-model="text"
           rows="3"
-          class="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-xs outline-none focus:border-ocean focus:bg-white"
+          class="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-sm outline-none focus:border-ocean focus:bg-white"
           placeholder="Date	Description	Amount	Category	Paid by"
           spellcheck="false"
           data-testid="paste-box"
@@ -122,8 +122,8 @@ function problemText(p: ParsedRow) {
 
         <div class="grid gap-2" :style="{ gridTemplateColumns: `repeat(${Math.min(table.columnCount, 6)}, minmax(0, 1fr))` }">
           <div v-for="c in table.columnCount" :key="c" class="rounded-md border border-slate-200 bg-slate-50 p-2">
-            <div class="truncate text-xs font-semibold text-slate-700" :title="columnName(c - 1)">{{ columnName(c - 1) }}</div>
-            <div class="mb-1 truncate text-xs text-slate-500" :title="sample(c - 1)">e.g. {{ sample(c - 1) || '(empty)' }}</div>
+            <div class="truncate text-sm font-semibold text-slate-700" :title="columnName(c - 1)">{{ columnName(c - 1) }}</div>
+            <div class="mb-1 truncate text-sm text-slate-600" :title="sample(c - 1)">e.g. {{ sample(c - 1) || '(empty)' }}</div>
             <Select
               v-model="roles[c - 1]"
               :options="[...COLUMN_ROLES]"
@@ -138,11 +138,11 @@ function problemText(p: ParsedRow) {
         </div>
 
         <div v-if="noDateColumn" class="text-sm text-slate-600">
-          <AppIcon name="info" :size="15" class="align-[-3px] text-ocean" /> No date column: every row gets today's date
+          <AppIcon name="info" :size="18" class="align-[-4px] text-ocean" /> No date column: every row gets today's date
           ({{ formatDateIndian(context.today) }}).
         </div>
         <div v-if="noAmountColumn" class="text-sm text-expense">
-          <AppIcon name="error" filled :size="15" class="align-[-3px]" /> Choose which column holds the amount.
+          <AppIcon name="error" filled :size="18" class="align-[-4px]" /> Choose which column holds the amount.
         </div>
 
         <div class="overflow-auto rounded-md border border-slate-200">
@@ -169,11 +169,11 @@ function problemText(p: ParsedRow) {
                 :data-valid="r.parsed.draft ? 'true' : 'false'"
                 :class="r.parsed.draft ? '' : 'bg-red-50'"
               >
-                <td class="num text-slate-400">{{ r.line }}</td>
+                <td class="num text-slate-600">{{ r.line }}</td>
                 <td>
-                  <AppIcon v-if="!r.parsed.draft" name="error" filled :size="16" class="text-expense" label="Can't be saved" />
-                  <AppIcon v-else-if="r.parsed.issues.length" name="warning" filled :size="16" class="text-uncat" label="Note" />
-                  <AppIcon v-else name="check_circle" :size="16" class="text-income" label="Ready" />
+                  <AppIcon v-if="!r.parsed.draft" name="error" filled :size="19" class="text-expense" label="Can't be saved" />
+                  <AppIcon v-else-if="r.parsed.issues.length" name="warning" filled :size="19" class="text-uncat" label="Note" />
+                  <AppIcon v-else name="check_circle" :size="19" class="text-income" label="Ready" />
                 </td>
                 <td class="whitespace-nowrap">{{ r.parsed.draft ? formatDateIndian(r.parsed.draft.date) : r.raw.date }}</td>
                 <td class="max-w-[18rem] truncate" :title="r.raw.description">{{ r.raw.description }}</td>
@@ -181,19 +181,19 @@ function problemText(p: ParsedRow) {
                 <td>{{ r.parsed.draft ? txnTypeLabel(r.parsed.draft.type) : r.raw.type || 'Expense' }}</td>
                 <td class="whitespace-nowrap">
                   <template v-if="r.parsed.draft && r.parsed.draft.type === 'transfer'">
-                    <TxnAvatar kind="transfer" :size="18" class="mr-1 align-middle" />Transfer
+                    <TxnAvatar kind="transfer" :size="22" class="mr-1 align-middle" />Transfer
                   </template>
                   <template v-else-if="r.parsed.draft && categoryFor(r.parsed)">
-                    <TxnAvatar :category="categoryFor(r.parsed)" :size="18" class="mr-1 align-middle" />{{ categoryFor(r.parsed)!.name }}
+                    <TxnAvatar :category="categoryFor(r.parsed)" :size="22" class="mr-1 align-middle" />{{ categoryFor(r.parsed)!.name }}
                   </template>
-                  <template v-else><TxnAvatar kind="auto" :size="18" class="mr-1 align-middle" />Auto</template>
+                  <template v-else><TxnAvatar kind="auto" :size="22" class="mr-1 align-middle" />Auto</template>
                 </td>
                 <td class="whitespace-nowrap">
                   {{ r.parsed.draft ? accountName(r.parsed.draft.accountId) : r.raw.account }}
                   <template v-if="r.parsed.draft?.toAccountId"> → {{ accountName(r.parsed.draft.toAccountId) }}</template>
                 </td>
                 <td>{{ r.raw.method || '—' }}</td>
-                <td class="text-xs" :class="r.parsed.draft ? 'text-uncat' : 'text-expense'">{{ problemText(r.parsed) }}</td>
+                <td class="text-sm" :class="r.parsed.draft ? 'text-uncat-ink' : 'text-expense'">{{ problemText(r.parsed) }}</td>
               </tr>
             </tbody>
           </table>
@@ -206,10 +206,10 @@ function problemText(p: ParsedRow) {
         <div class="mr-auto text-sm" data-testid="paste-counts">
           <template v-if="nonBlank.length">
             <span class="font-semibold text-income">{{ ready.length }} ready</span>
-            <span v-if="spent > 0" class="text-slate-500"> ({{ formatRupees(spent) }} spent)</span>
+            <span v-if="spent > 0" class="text-slate-600"> ({{ formatRupees(spent) }} spent)</span>
             <template v-if="problems.length">
               · <span class="font-semibold text-expense">{{ problems.length }} can't be saved yet</span>
-              <span class="text-slate-500"> (they go into the grid for you to fix)</span>
+              <span class="text-slate-600"> (they go into the grid for you to fix)</span>
             </template>
           </template>
         </div>

@@ -30,7 +30,7 @@ function isFuture(m: number) {
 <template>
   <div class="inline-flex items-center rounded-md border border-slate-300 bg-white" data-testid="month-switcher">
     <button type="button" class="px-1.5 py-1 text-slate-600 hover:bg-slate-100" aria-label="Previous month" @click="month = previousMonth(month)">
-      <AppIcon name="chevron_left" :size="20" />
+      <AppIcon name="chevron_left" :size="23" />
     </button>
     <button
       type="button"
@@ -39,7 +39,7 @@ function isFuture(m: number) {
       data-testid="month-label"
       @click="toggle"
     >
-      <AppIcon name="calendar_month" :size="17" class="text-slate-500" />
+      <AppIcon name="calendar_month" :size="20" class="text-slate-600" />
       {{ monthLabel(month) }}
     </button>
     <button
@@ -49,17 +49,17 @@ function isFuture(m: number) {
       :disabled="!canGoForward"
       @click="month = nextMonth(month)"
     >
-      <AppIcon name="chevron_right" :size="20" />
+      <AppIcon name="chevron_right" :size="23" />
     </button>
     <Popover ref="popover">
       <div class="w-60">
         <div class="mb-2 flex items-center justify-between">
           <button type="button" class="rounded p-1 hover:bg-slate-100" aria-label="Previous year" @click="pickerYear--">
-            <AppIcon name="chevron_left" :size="18" />
+            <AppIcon name="chevron_left" :size="21" />
           </button>
           <span class="font-semibold">{{ pickerYear }}</span>
           <button type="button" class="rounded p-1 hover:bg-slate-100" aria-label="Next year" @click="pickerYear++">
-            <AppIcon name="chevron_right" :size="18" />
+            <AppIcon name="chevron_right" :size="21" />
           </button>
         </div>
         <div class="grid grid-cols-4 gap-1">
@@ -67,7 +67,7 @@ function isFuture(m: number) {
             v-for="(name, i) in MONTH_SHORT"
             :key="name"
             type="button"
-            class="rounded py-1.5 text-sm disabled:opacity-30"
+            class="rounded py-1.5 text-dense disabled:opacity-30"
             :class="month.year === pickerYear && month.month === i + 1 ? 'bg-ocean text-white' : 'hover:bg-slate-100'"
             :disabled="isFuture(i + 1)"
             @click="pick(i + 1)"

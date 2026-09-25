@@ -31,6 +31,6 @@ onMounted(async () => {
       <p class="mb-4 text-slate-600">{{ problem }}</p>
       <RouterLink to="/login" class="font-medium text-ocean hover:underline">Back to sign in</RouterLink>
     </div>
-    <p v-else class="text-slate-500">Signing you in…</p>
+    <p v-else class="text-slate-600">Signing you in…</p>
   </div>
 </template>

@@ -31,7 +31,7 @@ const groups = computed(() => {
     <div class="flex items-end gap-2">
       <div class="mr-auto">
         <h1 class="text-xl font-semibold text-slate-800">Categories</h1>
-        <p class="text-sm text-slate-500">Click a category to rename it or change its icon and colour.</p>
+        <p class="text-sm text-slate-600">Click a category to rename it or change its icon and colour.</p>
       </div>
     </div>
 
@@ -61,32 +61,32 @@ const groups = computed(() => {
               :data-category-id="c.id"
               @click="editing = c"
             >
-              <td><TxnAvatar :category="c" :size="28" /></td>
+              <td><TxnAvatar :category="c" :size="32" /></td>
               <td>
                 <span class="font-semibold" :style="{ color: readableTextColor(c.color) }">{{ c.name }}</span>
-                <span v-if="c.archived" class="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-500">archived</span>
+                <span v-if="c.archived" class="ml-2 rounded bg-slate-100 px-1.5 text-sm text-slate-600">archived</span>
               </td>
               <td class="text-slate-600">{{ CATEGORY_ICON_LABELS[c.icon] ?? 'Tag' }}</td>
               <td>
-                <span class="inline-flex items-center gap-1.5 font-mono text-xs text-slate-500">
-                  <span class="inline-block h-3.5 w-3.5 rounded-sm" :style="{ background: c.color }" />{{ c.color }}
+                <span class="inline-flex items-center gap-1.5 font-mono text-sm text-slate-600">
+                  <span class="inline-block h-4 w-4 rounded-sm" :style="{ background: c.color }" />{{ c.color }}
                 </span>
               </td>
               <td class="text-right">
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm text-ocean hover:bg-blue-50"
+                  class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium text-ocean hover:bg-blue-50"
                   :aria-label="`Edit ${c.name}`"
                   @click.stop="editing = c"
                 >
-                  <AppIcon name="edit" :size="16" /> Edit
+                  <AppIcon name="edit" :size="19" /> Edit
                 </button>
               </td>
             </tr>
           </tbody>
         </table>
       </section>
-      <p class="text-sm text-slate-500">
+      <p class="text-sm text-slate-600">
         Renaming keeps a category's automatic matches: if Food becomes "Khana", Swiggy still goes there. Adding and
         archiving categories are coming in a later update.
       </p>
