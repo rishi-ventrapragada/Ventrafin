@@ -1,8 +1,6 @@
 // Generated from the hosted schema with the Supabase MCP `generate_typescript_types`
 // tool (schema only, no data). Regenerate after a migration that changes
-// public tables or functions. Do not edit by hand, with one exception:
-// accounts.archived (migration 20260925180000_audit_round_1, written but not
-// applied yet) was added by hand; regenerating after applying it gives the same.
+// public tables or functions. Do not edit by hand.
 
 export type Json =
   | string

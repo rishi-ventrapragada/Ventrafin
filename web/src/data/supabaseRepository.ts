@@ -61,17 +61,8 @@ export class SupabaseFinanceRepository implements FinanceRepository {
   constructor(private readonly client: AppSupabaseClient) {}
 
   async fetchAccounts() {
-    try {
-      const rows = await run(this.client.from('accounts').select(ACCOUNT_COLUMNS).order('name'))
-      return rows.map(accountFromRow)
-    } catch (e) {
-      // 42703 (no such column): the database doesn't have accounts.archived
-      // yet (migration 20260925180000 not applied). Carry on without it:
-      // every account counts as active.
-      if (!(e instanceof AppError && e.code === '42703')) throw e
-      const rows = await run(this.client.from('accounts').select('id, name, type').order('name'))
-      return rows.map(accountFromRow)
-    }
+    const rows = await run(this.client.from('accounts').select(ACCOUNT_COLUMNS).order('name'))
+    return rows.map(accountFromRow)
   }
 
   async insertAccount(id: string, name: string, type: AccountType) {
