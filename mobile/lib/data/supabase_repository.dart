@@ -67,6 +67,27 @@ class SupabaseFinanceRepository implements FinanceRepository {
       });
 
   @override
+  Future<List<CategoryComparison>> fetchMonthComparison(YearMonth month) => _run(() async {
+        final rows = await _client.rpc<List<dynamic>>(
+          'get_month_comparison',
+          params: {'p_month': toIsoDate(month.firstDay)},
+        );
+        return rows.map((r) => CategoryComparison.fromRow(r as Map<String, dynamic>)).toList();
+      });
+
+  @override
+  Future<Category> updateCategoryStyle(String id, {required String iconKey, required String colorHex}) =>
+      _run(() async {
+        final row = await _client
+            .from('categories')
+            .update({'icon': iconKey, 'color': colorHex})
+            .eq('id', id)
+            .select()
+            .single();
+        return Category.fromRow(row);
+      });
+
+  @override
   Future<Txn> insertTransaction(String id, TxnDraft draft) async {
     try {
       return await _run(() async {

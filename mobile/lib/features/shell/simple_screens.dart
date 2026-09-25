@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
-import '../../data/models.dart';
+import '../../core/visual_badges.dart';
 import '../../data/providers.dart';
+import '../dashboard/category_breakdown.dart';
 
-/// Dashboard: this month's headline numbers (from `get_month_totals`) and
-/// quick actions. Charts and fuller reports come in phase 5.
+/// Dashboard: this month's headline numbers (from `get_month_totals`), the
+/// spending-by-category breakdown, and quick actions. Fuller reports come in
+/// phase 5.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -67,12 +69,13 @@ class DashboardScreen extends ConsumerWidget {
             Card(
               color: kUncategorizedColor.withValues(alpha: 0.1),
               child: ListTile(
-                leading: const Icon(Icons.help_outline, color: kUncategorizedColor),
+                leading: const UncategorizedAvatar(size: 30),
                 title: Text('${t!.uncategorizedCount} uncategorized this month'),
                 subtitle: const Text('Open one and pick a category. Ventrafin learns from it.'),
                 onTap: () => context.go('/transactions'),
               ),
             ),
+          CategoryBreakdownCard(month: month),
           const SizedBox(height: 8),
           Row(children: [
             Expanded(
@@ -92,7 +95,7 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ]),
           const SizedBox(height: 16),
-          Text('Charts and category reports are coming in a later update.',
+          Text('Month-by-month reports are coming in a later update.',
               style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
         ],
       ),
@@ -150,39 +153,6 @@ class MoreScreen extends StatelessWidget {
   }
 }
 
-/// Read-only for now (editing categories is phase 4). Updates live, e.g.
-/// when auto-categorization creates a new category.
-class CategoriesScreen extends ConsumerWidget {
-  const CategoriesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final categories = ref.watch(categoriesProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Categories')),
-      body: switch (categories) {
-        AsyncValue(:final value?) => ListView(children: [
-            for (final kind in [TxnType.expense, TxnType.income]) ...[
-              ListTile(title: Text('${kind.label} categories', style: Theme.of(context).textTheme.titleSmall)),
-              for (final c in value.where((c) => c.kind == kind))
-                ListTile(
-                  leading: Icon(Icons.circle, color: c.color, size: 16),
-                  title: Text(c.name),
-                  trailing: c.archived ? const Text('archived') : null,
-                ),
-            ],
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Renaming, recolouring and archiving categories is coming in a later update.'),
-            ),
-          ]),
-        AsyncValue(:final error?) => Center(child: Text('Could not load categories: $error')),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
-    );
-  }
-}
-
 class AccountsScreen extends ConsumerWidget {
   const AccountsScreen({super.key});
 
@@ -195,11 +165,7 @@ class AccountsScreen extends ConsumerWidget {
         AsyncValue(:final value?) => ListView(children: [
             for (final a in value)
               ListTile(
-                leading: Icon(switch (a.type) {
-                  AccountType.cash => Icons.payments_outlined,
-                  AccountType.bank => Icons.account_balance_outlined,
-                  AccountType.credit => Icons.credit_card,
-                }),
+                leading: AccountAvatar(type: a.type, size: 34),
                 title: Text(a.name),
                 subtitle: Text(a.type.label),
               ),

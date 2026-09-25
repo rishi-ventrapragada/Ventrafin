@@ -160,6 +160,16 @@ final monthTotalsProvider = FutureProvider.autoDispose.family<MonthTotals, YearM
   return ref.watch(repositoryProvider).fetchMonthTotals(month);
 });
 
+final monthComparisonProvider =
+    FutureProvider.autoDispose.family<List<CategoryComparison>, YearMonth>((ref, month) {
+  _revision(ref, 'transactions');
+  // Category names/colours are joined in the rpc, so a rename or recolour
+  // must re-fetch too.
+  _revision(ref, 'categories');
+  ref.watch(currentUserIdProvider);
+  return ref.watch(repositoryProvider).fetchMonthComparison(month);
+});
+
 final transactionProvider = FutureProvider.autoDispose.family<Txn?, String>((ref, id) {
   _revision(ref, 'transactions');
   return ref.watch(repositoryProvider).fetchTransaction(id);

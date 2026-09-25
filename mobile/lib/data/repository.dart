@@ -33,6 +33,12 @@ abstract interface class FinanceRepository {
   /// `get_month_totals(p_month)`: this vs last month, computed in Postgres.
   Future<MonthTotals> fetchMonthTotals(YearMonth month);
 
+  /// `get_month_comparison(p_month)`: per category, this vs last month.
+  Future<List<CategoryComparison>> fetchMonthComparison(YearMonth month);
+
+  /// Changes a category's icon (a curated key) and colour (`#RRGGBB`).
+  Future<Category> updateCategoryStyle(String id, {required String iconKey, required String colorHex});
+
   /// Inserts with a client-generated [id]. Retrying with the same id after an
   /// ambiguous failure (e.g. a timeout) never creates a duplicate. Returns
   /// the stored row, including the category the database auto-assigned.

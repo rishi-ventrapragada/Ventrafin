@@ -42,13 +42,19 @@ cd android; .\gradlew signingReport
 lib/
   main.dart, app.dart, router.dart   bootstrap, theme, routes and redirects
   config/        build-time config
-  core/          money (paise <-> ₹, Indian grouping), India time, errors, theme, offline banner
+  core/          money (paise <-> ₹, Indian grouping), India time, errors, theme, offline banner,
+                 category icons/palette (mirror of /shared/category-style.json), merchant badges, badge widgets
   data/          models, repository (Supabase), Riverpod providers, Realtime -> revisions
   features/
     auth/        native Google Sign-In -> signInWithIdToken
     lock/        pattern pad, PBKDF2 hashing, lock store/controller, lock overlay, setup
     entry/       keypad-first Add (batch) and Edit forms
     transactions/  month list grouped by date, delete, live updates
+    categories/  category list + icon/colour editor
+    dashboard/   spending-by-category donut and table
     shell/ settings/  bottom nav, dashboard, More, placeholders, settings
-test/            money + pattern-hash unit tests, add-flow widget tests
+test/            money, pattern-hash and category-style unit tests; add-flow and screen widget tests
+                 (support/fake_repository.dart is the shared in-memory repository)
 ```
+
+Screens set FLAG_SECURE (DECISIONS.md D15), so `adb screencap` and screen mirroring show black on a real device.

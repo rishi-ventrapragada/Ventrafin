@@ -149,6 +149,55 @@ We don't own `ventrafin.com`. That doesn't matter for sideloading or the Play St
 
 ---
 
+## D13. Category icons: curated Material Symbols keys stored in the database
+
+**Decision:** each category stores an icon **key** (`categories.icon`), not an image. Keys are names from Google's **Material Symbols** set (Apache-2.0), for example `restaurant`, `shopping_cart`, `local_hospital`, `local_gas_station`, `bolt` or `account_balance_wallet`. Only a curated subset of about 60 icons is allowed, enforced by the `categories_icon_check` constraint. Colours come from a curated 24-colour palette (`private.category_palette()`).
+
+**Why:**
+- **Same icons in both apps from one open font.** Flutter already bundles these glyphs as `Icons.<key>`, with no new dependency. The web app can use the Material Symbols font (Google Fonts or the `material-symbols` npm package) with the same key as the ligature name. Storing the key in Postgres means both apps show the same icon without sharing any code.
+- **Curated, not free-form.** A CHECK list guarantees that every stored key renders on both clients, and it keeps the picker small enough to scan. Adding an icon means a migration plus both clients, which is rare.
+- **Defaults live in Postgres** (a `BEFORE INSERT` trigger), like the rest of the shared logic:
+  - A built-in name ("Fuel") gets its built-in icon and colour.
+  - A name that the keyword list recognises ("Petrol", "Swiggy") gets that category's icon.
+  - Anything else gets a tag icon.
+  - The colour is the first palette colour none of the user's active categories uses yet.
+  - Seeding and auto-categorization pick all this up without changes.
+- **Built-in colours were re-picked to be distinct.** Every pair of built-in expense colours is at least CIEDE2000 15 apart. The migration moved existing users' colours only where they were still the old default.
+- **Readable glyphs** on pale colours: the apps draw a white glyph when it reaches 3:1 contrast, otherwise a dark one.
+- **Uncategorized has no row**, so it has a fixed look in the clients instead: an amber `?` in an *outlined* circle. Every real category is a *filled* circle.
+
+**The mirror:** `/shared/category-style.json` mirrors the icon list (with labels and groups) and the palette for the clients. `mobile/test/category_style_test.dart` fails if the Dart list, the JSON and the latest migration drift apart.
+
+**Rejected:**
+- **Image files or URLs per category:** storage, sizing and licensing per image, and nothing guarantees they render.
+- **Emoji:** they look different on every device and Windows version, and several have no good equivalent (LPG cylinder, EMI).
+- **Font Awesome / other icon packs:** a new dependency on mobile, and a more restrictive licence for some icons.
+
+---
+
+## D14. Merchant badges: letters, never logos
+
+**Decision:** where a transaction's description names a merchant, the list shows a small **letter badge**, coloured consistently per merchant. There are **no brand logos and no logo service** (Clearbit, Brandfetch, favicon fetchers and the like).
+
+**Why:** brand logos are trademarks, and any logo service would receive Dad's merchant names, which is a privacy leak to a third party (PRD priority 2). The badge is computed on the phone from text it already has:
+- the merchant is the first word of the description that isn't a payment filler word (`upi`, `paid`, `to`, …) or a number;
+- the letter is that word's first letter;
+- the colour is `palette[FNV-1a-32(word) % 24]`.
+
+The exact rule, the filler words and test vectors are in `/shared/category-style.json`, so the web app can draw identical badges. It is display-only, so it is not stored.
+
+---
+
+## D15. Mobile screens are not capturable (FLAG_SECURE)
+
+**Decision:** the Android activity sets `FLAG_SECURE`, and on Android 13+ also `setRecentsScreenshotEnabled(false)`. The app shows as a blank card in the recent-apps screen, and screenshots, screen recording and casting capture a black screen.
+
+**Why:** finance data shouldn't sit in the recents thumbnail, where it's visible even while the app lock is up, or end up in the gallery or cloud photo backups by accident.
+
+**Accepted tradeoff:** Dad can't screenshot a screen to share it. Developers can't use `adb screencap` or screen mirroring on a real device either, so use widget tests or an emulator build for screenshots. If sharing becomes a need, add an in-app export instead of lifting the flag.
+
+---
+
 ## Open items not yet decided
 
 - Exact backup/export mechanism for guarding against Supabase's lack of free-tier backups (flagged in `PRD.md` § 5, not yet solved).

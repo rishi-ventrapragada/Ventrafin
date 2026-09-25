@@ -65,7 +65,8 @@ Clients can select, insert and update their own profile but not delete it; its l
 | owner_id | uuid | |
 | name | text | 1–40 chars; unique per user and kind (case-insensitive); `Uncategorized` is reserved |
 | kind | text | `expense` / `income` |
-| color | text | `#RRGGBB`, for chart/UI display |
+| color | text | `#RRGGBB`, for chart/UI display. If omitted on insert: the built-in colour, else the first unused palette colour |
+| icon | text | key from the curated icon set (Material Symbols name, `categories_icon_check`). If omitted on insert: the built-in icon, else a keyword-based guess, else `label`. See `DECISIONS.md` D13 |
 | archived | boolean | default false |
 
 **Uncategorized** is not a row: it is `transactions.category_id IS NULL`.
@@ -108,7 +109,8 @@ Clients can select, insert and update their own profile but not delete it; its l
 | reminder_enabled | boolean | default true |
 
 ### Internal (`private` schema, not exposed through the API)
-- `private.builtin_categories`: every category the system can create: name, kind, colour, and whether it's a starter.
+- `private.builtin_categories`: every category the system can create: name, kind, colour, icon, and whether it's a starter.
+- `private.category_palette()`: the curated 24-colour palette, in picker order.
 - `private.builtin_keywords`: the built-in Indian merchant/biller keyword list (about 230 keywords) mapping to those categories, each with a match mode (`word` or `substring`).
 - Both have RLS on with explicit deny-all policies and no grants to `anon`/`authenticated`. They are read only through SECURITY DEFINER functions.
 
@@ -135,6 +137,12 @@ Because two independently-built clients write to the same data, any logic that m
   - `get_month_comparison(p_month date default null)`: per category (Uncategorized included as `category_id NULL`), this month vs last month, change in paise and %.
   - `get_monthly_category_totals(p_from_month, p_to_month)`: per month × category totals; defaults to the last 12 months.
   - `p_month` is any date in the month; NULL means the current month in Asia/Kolkata. **Transfers are excluded** from all totals: a credit-card purchase is an expense when it happens, and paying the card bill is a transfer.
+- **Category icon and colour defaults**: a `BEFORE INSERT` trigger on `categories` fills in whichever of `icon` / `color` the client left out:
+  - a built-in name gets its built-in icon and colour;
+  - a name that the built-in keyword list recognises ("Petrol") gets that category's icon;
+  - otherwise the icon is `label`, and the colour is the first palette colour none of the user's active categories uses yet.
+
+  Auto-categorization and seeding rely on this too. `/shared/category-style.json` mirrors the icon list and palette for the clients.
 - **New-user seeding**: a trigger on `auth.users` creates the `profiles` row. A trigger on `profiles` then inserts the starter categories and the default accounts **Cash**, **Bank** and **Credit Card**.
   - Starter expense categories: Groceries, Bills, Medical, Transport, Food, Electricity, Entertainment, Other.
   - Starter **income** categories: Salary, Interest, Other Income.
@@ -204,6 +212,13 @@ No policy grants any cross-user access. There is no role/claim for "admin" or "v
   - The last-used account and payment method are remembered on the device (UI preference only, not data).
 - **Realtime**: the app subscribes to all five published tables and re-fetches the affected view on change, on reconnect and on resume.
 - **No offline mode**: a visible "no internet" state, and every failed save is reported with the form kept intact.
+- **Visual recognition** (D13, D14):
+  - Every category shows as its icon in a filled circle of its colour, in the transaction list, pickers, the Categories screen and the Dashboard. Uncategorized is an outlined amber `?` and transfers an outlined grey arrow.
+  - Descriptions get a merchant letter badge.
+  - Accounts and payment methods have fixed icons.
+  - The icons sit inside the existing two-line rows, so the list is no taller (a widget test checks this).
+- **Dashboard** adds a this-month spending-by-category donut and a this-vs-last-month table per category, from `get_month_comparison`.
+- **FLAG_SECURE** (D15): blank in recent apps, no screenshots or screen recording.
 
 ## 7. Web app (Vue 3)
 

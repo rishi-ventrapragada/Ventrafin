@@ -15,6 +15,8 @@ Never change the schema through the dashboard. Add a new migration instead.
 | `…154918_realtime` | Publishes `transactions`, `accounts`, `recurring_bills` |
 | `…155021_advisor_fixes` | Revokes API execute on Supabase's `rls_auto_enable()`, adds explicit deny-all policies on `private.*`, indexes a reference-data FK |
 | `…155214_enable_pgtap` | Installs pgTAP (in `extensions`) for the tests |
+| `…162343_realtime_categories_profiles` | Publishes `categories` and `profiles` too |
+| `…040030_category_icons` | `categories.icon` (curated Material Symbols keys), a curated palette, distinct built-in colours, and a trigger that fills in the default icon and colour. Backfills existing rows |
 
 `seed.sql` is intentionally empty. Reference data lives in migrations so the hosted project gets it too.
 

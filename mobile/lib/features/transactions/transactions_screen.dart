@@ -7,7 +7,9 @@ import '../../core/errors.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
 import '../../core/offline_banner.dart';
+import '../../core/category_style.dart';
 import '../../core/theme.dart';
+import '../../core/visual_badges.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import '../entry/edit_transaction_screen.dart';
@@ -257,8 +259,6 @@ class _TxnRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final t = txn;
-    final account = accounts[t.accountId]?.name ?? '…';
-    final toAccount = t.toAccountId == null ? null : (accounts[t.toAccountId]?.name ?? '…');
     final category = t.categoryId == null ? null : categories[t.categoryId];
 
     final (amountText, amountColor) = switch (t.type) {
@@ -267,16 +267,17 @@ class _TxnRow extends ConsumerWidget {
       TxnType.transfer => (formatRupees(t.amountPaise), kTransferColor),
     };
 
-    final Widget categoryChip = switch (t.type) {
-      TxnType.transfer => _Tag(text: 'Transfer', color: kTransferColor, icon: Icons.swap_horiz),
-      _ when category == null => const _Tag(text: 'Uncategorized', color: kUncategorizedColor, icon: Icons.help_outline),
-      _ => _Tag(text: category.name, color: category.color, dot: true),
+    // The circle already says which category; the text label stays for
+    // reading, and Uncategorized keeps its attention-grabbing chip.
+    final Widget categoryLabel = switch (t.type) {
+      TxnType.transfer => const _Label(text: 'Transfer', color: kTransferColor),
+      _ when t.categoryId == null => const _UncategorizedChip(),
+      _ => _Label(text: category?.name ?? '…', color: category?.color ?? kTransferColor),
     };
 
-    final details = [
-      toAccount == null ? account : '$account → $toAccount',
-      if (t.paymentMethod != null) t.paymentMethod!.label,
-    ].join(' · ');
+    final detailStyle = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final account = accounts[t.accountId];
+    final toAccount = t.toAccountId == null ? null : accounts[t.toAccountId];
 
     return Dismissible(
       key: ValueKey('txn-${t.id}'),
@@ -307,48 +308,70 @@ class _TxnRow extends ConsumerWidget {
       child: InkWell(
         onTap: () => context.push('/transactions/${t.id}'),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      t.description.isEmpty ? '(no description)' : t.description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontStyle: t.description.isEmpty ? FontStyle.italic : null,
-                      ),
+              TxnAvatar(txn: t, category: category, size: 32),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (t.description.isNotEmpty) ...[
+                          MerchantBadge(description: t.description),
+                          const SizedBox(width: 5),
+                        ],
+                        Expanded(
+                          child: Text(
+                            t.description.isEmpty ? '(no description)' : t.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontStyle: t.description.isEmpty ? FontStyle.italic : null,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          amountText,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: amountColor, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    amountText,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: amountColor, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 3),
-              Row(
-                children: [
-                  categoryChip,
-                  if (t.autoCategorized) ...[
-                    const SizedBox(width: 4),
-                    Text('auto', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Flexible(child: categoryLabel),
+                        if (t.autoCategorized) ...[
+                          const SizedBox(width: 4),
+                          Text('auto', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+                        ],
+                        const SizedBox(width: 8),
+                        const Spacer(),
+                        _Detail(
+                          icon: account?.type.icon ?? Icons.account_balance_wallet_outlined,
+                          text: account?.name ?? '…',
+                          style: detailStyle,
+                        ),
+                        if (t.toAccountId != null) ...[
+                          Icon(Icons.arrow_forward, size: 12, color: detailStyle?.color),
+                          const SizedBox(width: 2),
+                          _Detail(
+                            icon: toAccount?.type.icon ?? Icons.account_balance_wallet_outlined,
+                            text: toAccount?.name ?? '…',
+                            style: detailStyle,
+                          ),
+                        ],
+                        if (t.paymentMethod != null) ...[
+                          const SizedBox(width: 6),
+                          _Detail(icon: t.paymentMethod!.icon, text: t.paymentMethod!.label, style: detailStyle),
+                        ],
+                      ],
+                    ),
                   ],
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      details,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
@@ -358,40 +381,71 @@ class _TxnRow extends ConsumerWidget {
   }
 }
 
-class _Tag extends StatelessWidget {
-  const _Tag({required this.text, required this.color, this.icon, this.dot = false});
+/// Category name in its colour (darkened when the colour is pale).
+class _Label extends StatelessWidget {
+  const _Label({required this.text, required this.color});
 
   final String text;
   final Color color;
-  final IconData? icon;
-  final bool dot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: readableTextColor(color),
+            fontWeight: FontWeight.w600,
+          ),
+    );
+  }
+}
+
+class _UncategorizedChip extends StatelessWidget {
+  const _UncategorizedChip();
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: kUncategorizedColor.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.5), width: 0.8),
+        border: Border.all(color: kUncategorizedColor.withValues(alpha: 0.5), width: 0.8),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (dot) Icon(Icons.circle, size: 8, color: color),
-          if (icon != null) Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 140),
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Color.lerp(color, Colors.black, 0.35)),
-            ),
-          ),
-        ],
+      child: Text(
+        'Uncategorized',
+        maxLines: 1,
+        style: Theme.of(context)
+            .textTheme
+            .labelSmall
+            ?.copyWith(color: Color.lerp(kUncategorizedColor, Colors.black, 0.35)),
       ),
+    );
+  }
+}
+
+/// Small icon + text for the account / payment method.
+class _Detail extends StatelessWidget {
+  const _Detail({required this.icon, required this.text, required this.style});
+
+  final IconData icon;
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: style?.color),
+        const SizedBox(width: 2),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 88),
+          child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+        ),
+      ],
     );
   }
 }

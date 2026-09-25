@@ -7,9 +7,11 @@ import '../../core/errors.dart';
 import '../../core/india_time.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
+import '../../core/visual_badges.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import 'amount_keypad.dart';
+import 'category_picker.dart';
 
 /// Something saved during this Add session, shown in the "Just saved" panel.
 class SavedEntry {
@@ -321,7 +323,9 @@ class EntryFormState extends ConsumerState<EntryForm> {
   Widget _typeSelector() => SegmentedButton<TxnType>(
         key: const Key('entry-type'),
         showSelectedIcon: false,
-        segments: [for (final t in TxnType.values) ButtonSegment(value: t, label: Text(t.label))],
+        segments: [
+          for (final t in TxnType.values) ButtonSegment(value: t, icon: Icon(t.icon, size: 18), label: Text(t.label)),
+        ],
         selected: {_type},
         onSelectionChanged: (s) => setState(() {
           final next = s.first;
@@ -366,7 +370,14 @@ class EntryFormState extends ConsumerState<EntryForm> {
   }
 
   Widget _accountRow(List<Account> accounts) {
-    DropdownMenuItem<String> item(Account a) => DropdownMenuItem(value: a.id, child: Text(a.name));
+    DropdownMenuItem<String> item(Account a) => DropdownMenuItem(
+          value: a.id,
+          child: Row(children: [
+            Icon(a.type.icon, size: 18, color: a.type.color),
+            const SizedBox(width: 8),
+            Flexible(child: Text(a.name, overflow: TextOverflow.ellipsis)),
+          ]),
+        );
     final from = DropdownButtonFormField<String>(
       key: const Key('entry-account'),
       initialValue: _accountId,
@@ -410,6 +421,7 @@ class EntryFormState extends ConsumerState<EntryForm> {
           for (final m in PaymentMethod.values)
             ChoiceChip(
               key: Key('method-${m.db}'),
+              avatar: Icon(m.icon, size: 16),
               label: Text(m.label),
               selected: _method == m,
               visualDensity: VisualDensity.compact,
@@ -453,32 +465,43 @@ class EntryFormState extends ConsumerState<EntryForm> {
   }
 
   Widget _categoryField(List<Category> categories) {
-    final options = categories.where((c) => c.kind == _type && (!c.archived || c.id == _categoryId)).toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    final value = options.any((c) => c.id == _categoryId) ? _categoryId : null;
-    return DropdownButtonFormField<String?>(
+    final selected = categories.where((c) => c.id == _categoryId).firstOrNull;
+    final theme = Theme.of(context);
+    return InkWell(
       key: const Key('entry-category'),
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: 'Category (optional)',
-        helperText: widget.isEdit
-            ? 'Changing the category teaches Ventrafin for next time.'
-            : 'Leave on Auto and Ventrafin picks one from the description.',
-      ),
-      items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('Auto')),
-        for (final c in options)
-          DropdownMenuItem<String?>(
-            value: c.id,
-            child: Row(children: [
-              Icon(Icons.circle, size: 10, color: c.color),
-              const SizedBox(width: 8),
-              Flexible(child: Text(c.name, overflow: TextOverflow.ellipsis)),
-            ]),
+      borderRadius: BorderRadius.circular(4),
+      onTap: () async {
+        FocusScope.of(context).unfocus();
+        final choice = await showCategoryPicker(
+          context,
+          categories: categories,
+          kind: _type,
+          selectedId: _categoryId,
+        );
+        if (choice != null && mounted) setState(() => _categoryId = choice.id);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Category (optional)',
+          helperText: widget.isEdit
+              ? 'Changing the category teaches Ventrafin for next time.'
+              : 'Leave on Auto and Ventrafin picks one from the description.',
+          suffixIcon: const Icon(Icons.arrow_drop_down),
+          contentPadding: const EdgeInsets.fromLTRB(12, 8, 0, 8),
+        ),
+        child: Row(children: [
+          if (selected == null) const AutoCategoryAvatar(size: 24) else CategoryAvatar(category: selected, size: 24),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              selected?.name ?? 'Auto',
+              key: const Key('entry-category-text'),
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyLarge,
+            ),
           ),
-      ],
-      onChanged: (v) => setState(() => _categoryId = v),
+        ]),
+      ),
     );
   }
 
@@ -566,14 +589,23 @@ class _JustSaved extends StatelessWidget {
       _ => '${category?.name ?? 'New category'}${t.autoCategorized ? ' (auto)' : ''}',
     };
     return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Text(
-        '${formatRupees(t.amountPaise)} · ${t.description.isEmpty ? '(no description)' : t.description}'
-        ' · $categoryText · ${account?.name ?? ''}${t.paymentMethod != null ? '/${t.paymentMethod!.label}' : ''}'
-        ' · ${DateFormat('d MMM').format(t.date)}',
-        style: Theme.of(context).textTheme.bodySmall,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TxnAvatar(txn: t, category: category, size: 18),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${formatRupees(t.amountPaise)} · ${t.description.isEmpty ? '(no description)' : t.description}'
+              ' · $categoryText · ${account?.name ?? ''}${t.paymentMethod != null ? '/${t.paymentMethod!.label}' : ''}'
+              ' · ${DateFormat('d MMM').format(t.date)}',
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

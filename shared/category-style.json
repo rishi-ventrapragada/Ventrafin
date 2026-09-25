@@ -1,0 +1,125 @@
+{
+  "$comment": "Curated category icons and colours, shared by both apps (DECISIONS.md D13). Icon keys are Google Material Symbols names (Apache-2.0): Flutter renders them with its built-in Icons.<key>, the web app with the Material Symbols font. The icon keys must match the categories_icon_check constraint in supabase/migrations; mobile/test/category_style_test.dart checks both. Palette order is picker order and the order the database uses for default colours.",
+  "defaultIcon": "label",
+  "uncategorized": { "icon": "question_mark", "color": "#B26A00", "style": "outlined" },
+  "transfer": { "icon": "swap_horiz", "color": "#546E7A", "style": "outlined" },
+  "iconGroups": [
+    {
+      "name": "General",
+      "icons": [
+        { "key": "label", "label": "Tag" },
+        { "key": "more_horiz", "label": "Other" }
+      ]
+    },
+    {
+      "name": "Food & home",
+      "icons": [
+        { "key": "restaurant", "label": "Food" },
+        { "key": "local_cafe", "label": "Tea & coffee" },
+        { "key": "fastfood", "label": "Snacks" },
+        { "key": "bakery_dining", "label": "Bakery" },
+        { "key": "shopping_cart", "label": "Groceries" },
+        { "key": "house", "label": "Home & rent" },
+        { "key": "cleaning_services", "label": "Cleaning & help" },
+        { "key": "local_laundry_service", "label": "Laundry" },
+        { "key": "handyman", "label": "Repairs" },
+        { "key": "pets", "label": "Pets" }
+      ]
+    },
+    {
+      "name": "Bills & utilities",
+      "icons": [
+        { "key": "receipt_long", "label": "Bills" },
+        { "key": "bolt", "label": "Electricity" },
+        { "key": "water_drop", "label": "Water" },
+        { "key": "propane_tank", "label": "Cooking gas" },
+        { "key": "smartphone", "label": "Mobile" },
+        { "key": "wifi", "label": "Internet" },
+        { "key": "tv", "label": "TV / DTH" },
+        { "key": "event_repeat", "label": "EMI" },
+        { "key": "request_quote", "label": "Tax & fees" }
+      ]
+    },
+    {
+      "name": "Transport & travel",
+      "icons": [
+        { "key": "local_taxi", "label": "Cab & auto" },
+        { "key": "directions_car", "label": "Car" },
+        { "key": "two_wheeler", "label": "Two-wheeler" },
+        { "key": "directions_bus", "label": "Bus" },
+        { "key": "train", "label": "Train & metro" },
+        { "key": "local_gas_station", "label": "Fuel" },
+        { "key": "local_parking", "label": "Parking" },
+        { "key": "flight", "label": "Flights" },
+        { "key": "luggage", "label": "Trips" }
+      ]
+    },
+    {
+      "name": "Health & family",
+      "icons": [
+        { "key": "local_hospital", "label": "Medical" },
+        { "key": "medication", "label": "Medicines" },
+        { "key": "local_pharmacy", "label": "Pharmacy" },
+        { "key": "fitness_center", "label": "Fitness" },
+        { "key": "spa", "label": "Wellness" },
+        { "key": "child_care", "label": "Children" },
+        { "key": "elderly", "label": "Elders" },
+        { "key": "family_restroom", "label": "Family" },
+        { "key": "school", "label": "Education" },
+        { "key": "menu_book", "label": "Books" }
+      ]
+    },
+    {
+      "name": "Shopping & leisure",
+      "icons": [
+        { "key": "shopping_bag", "label": "Shopping" },
+        { "key": "checkroom", "label": "Clothes" },
+        { "key": "content_cut", "label": "Salon" },
+        { "key": "card_giftcard", "label": "Gifts" },
+        { "key": "celebration", "label": "Festivals" },
+        { "key": "movie", "label": "Entertainment" },
+        { "key": "sports_esports", "label": "Games" },
+        { "key": "sports_cricket", "label": "Sports" },
+        { "key": "temple_hindu", "label": "Temple & pooja" },
+        { "key": "volunteer_activism", "label": "Donations" }
+      ]
+    },
+    {
+      "name": "Money",
+      "icons": [
+        { "key": "account_balance_wallet", "label": "Salary" },
+        { "key": "currency_rupee", "label": "Money" },
+        { "key": "percent", "label": "Interest" },
+        { "key": "savings", "label": "Savings" },
+        { "key": "trending_up", "label": "Investments" },
+        { "key": "undo", "label": "Refund" },
+        { "key": "redeem", "label": "Cashback & rewards" },
+        { "key": "work", "label": "Business" },
+        { "key": "sell", "label": "Sales" },
+        { "key": "shield", "label": "Insurance" },
+        { "key": "real_estate_agent", "label": "Rent received" }
+      ]
+    }
+  ],
+  "palette": [
+    "#E53935", "#BF360C", "#FFAB91", "#FB8C00", "#FDD835", "#C0CA33",
+    "#AED581", "#43A047", "#2E7D32", "#0097A7", "#4FC3F7", "#1E88E5",
+    "#1565C0", "#3949AB", "#B39DDB", "#8E24AA", "#AD1457", "#EC407A",
+    "#6D4C41", "#A1887F", "#546E7A", "#78909C", "#9E9E9E", "#263238"
+  ],
+  "merchantBadge": {
+    "$comment": "Letter badge derived from a transaction description (no logos, nothing sent anywhere). key = first word of the normalized description that is not a filler word and not only digits; letter = its first character, upper-cased; colour = palette[fnv1a32(utf8(key)) % palette.length]. Normalization: lower-case, every run of characters that are not letters, combining marks or digits -> one space (so Devanagari vowel signs stay inside their word), trim.",
+    "fillerWords": [
+      "upi", "imps", "neft", "rtgs", "ach", "nach", "pos", "ecom", "txn", "ref", "refno",
+      "payment", "paid", "pay", "sent", "received", "transfer", "trf", "dr", "cr",
+      "to", "from", "by", "via", "for", "at", "on", "in", "of", "the", "and", "a", "an",
+      "rs", "inr", "bill", "order"
+    ],
+    "examples": [
+      { "description": "UPI/SWIGGY/4471023@icici", "key": "swiggy", "letter": "S" },
+      { "description": "Paid to Ramesh Kirana Store", "key": "ramesh", "letter": "R" },
+      { "description": "D-Mart Andheri", "key": "d", "letter": "D" },
+      { "description": "4471023", "key": null, "letter": null }
+    ]
+  }
+}

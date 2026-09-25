@@ -66,6 +66,7 @@ class Category {
     required this.kind,
     required this.color,
     required this.archived,
+    this.iconKey = 'label',
   });
 
   factory Category.fromRow(Map<String, dynamic> r) => Category(
@@ -74,6 +75,7 @@ class Category {
         kind: TxnType.fromDb(r['kind'] as String),
         color: parseHexColor(r['color'] as String?),
         archived: r['archived'] as bool? ?? false,
+        iconKey: r['icon'] as String? ?? 'label',
       );
 
   final String id;
@@ -83,6 +85,9 @@ class Category {
   final TxnType kind;
   final Color color;
   final bool archived;
+
+  /// Key from the curated icon set (`categories.icon`), see core/category_style.dart.
+  final String iconKey;
 }
 
 Color parseHexColor(String? hex, {Color fallback = const Color(0xFF9E9E9E)}) {
@@ -203,4 +208,36 @@ class MonthTotals {
   final int uncategorizedCount;
 
   int get netPaise => incomePaise - expensePaise;
+}
+
+/// One row of `get_month_comparison()`: a category's total this month and
+/// last month. `categoryId == null` is Uncategorized.
+@immutable
+class CategoryComparison {
+  const CategoryComparison({
+    required this.kind,
+    required this.categoryId,
+    required this.categoryName,
+    required this.color,
+    required this.thisMonthPaise,
+    required this.lastMonthPaise,
+  });
+
+  factory CategoryComparison.fromRow(Map<String, dynamic> r) => CategoryComparison(
+        kind: TxnType.fromDb(r['kind'] as String),
+        categoryId: r['category_id'] as String?,
+        categoryName: r['category_name'] as String,
+        color: parseHexColor(r['category_color'] as String?),
+        thisMonthPaise: (r['this_month_paise'] as num).toInt(),
+        lastMonthPaise: (r['last_month_paise'] as num).toInt(),
+      );
+
+  final TxnType kind;
+  final String? categoryId;
+  final String categoryName;
+  final Color color;
+  final int thisMonthPaise;
+  final int lastMonthPaise;
+
+  int get changePaise => thisMonthPaise - lastMonthPaise;
 }
